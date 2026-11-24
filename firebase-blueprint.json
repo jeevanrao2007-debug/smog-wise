@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "Household": {
+      "title": "Household",
+      "description": "Stores a family's smog lifestyle profile and daily completed actions.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the authenticated household owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "city": {
+          "type": "string",
+          "description": "Human-readable city name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "citySlug": {
+          "type": "string",
+          "description": "Normalized slug for the city.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the household city."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the household city."
+        },
+        "cookingFuel": {
+          "type": "string",
+          "description": "Primary cooking fuel type.",
+          "enum": ["gas", "induction"]
+        },
+        "commute": {
+          "type": "string",
+          "description": "Primary daily commute mode.",
+          "enum": ["car", "two_wheeler", "public_transit", "wfh"]
+        },
+        "indoorFiltration": {
+          "type": "string",
+          "description": "Whether the household has an indoor air purifier.",
+          "enum": ["has_purifier", "no_purifier"]
+        },
+        "vulnerableMembers": {
+          "type": "string",
+          "description": "Whether kids or seniors live at home.",
+          "enum": ["yes", "no"]
+        },
+        "completedActionsToday": {
+          "type": "array",
+          "description": "Bounded list of action IDs completed today (max 10).",
+          "maxLength": 10
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the household profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the household profile was last updated."
+        }
+      },
+      "required": [
+        "userId",
+        "city",
+        "citySlug",
+        "latitude",
+        "longitude",
+        "cookingFuel",
+        "commute",
+        "indoorFiltration",
+        "vulnerableMembers",
+        "completedActionsToday",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CommunityImpact": {
+      "title": "CommunityImpact",
+      "description": "Aggregated anonymized neighborhood smog action metrics per city.",
+      "type": "object",
+      "properties": {
+        "citySlug": {
+          "type": "string",
+          "description": "Normalized city identifier matching the document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "cityName": {
+          "type": "string",
+          "description": "Display name of the city.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "familiesCount": {
+          "type": "number",
+          "description": "Total families taking action in this city today."
+        },
+        "co2AvoidedKg": {
+          "type": "number",
+          "description": "Cumulative kg of CO2 avoided locally today."
+        },
+        "noxAvoidedGrams": {
+          "type": "number",
+          "description": "Cumulative grams of NOx avoided locally today."
+        },
+        "recentActions": {
+          "type": "array",
+          "description": "Bounded list of up to 10 recent anonymized action strings.",
+          "maxLength": 10
+        },
+        "lastActionBy": {
+          "type": "string",
+          "description": "UID of the authenticated user who recorded the latest action.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest neighborhood action."
+        }
+      },
+      "required": [
+        "citySlug",
+        "cityName",
+        "familiesCount",
+        "co2AvoidedKg",
+        "noxAvoidedGrams",
+        "recentActions",
+        "lastActionBy",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/households/{userId}": {
+      "schema": {
+        "$ref": "#/entities/Household"
+      },
+      "description": "Per-family lifestyle profile and daily completed habit IDs, isolated to the authenticated household owner."
+    },
+    "/community_impact/{citySlug}": {
+      "schema": {
+        "$ref": "#/entities/CommunityImpact"
+      },
+      "description": "Real-time neighborhood impact counter and anonymized action ticker per city."
+    }
+  }
+}

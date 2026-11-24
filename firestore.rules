@@ -1,0 +1,234 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'anonymous');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidHousehold(data) {
+      return data.keys().hasAll([
+          'userId',
+          'city',
+          'citySlug',
+          'latitude',
+          'longitude',
+          'cookingFuel',
+          'commute',
+          'indoorFiltration',
+          'vulnerableMembers',
+          'completedActionsToday',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId',
+          'city',
+          'citySlug',
+          'latitude',
+          'longitude',
+          'cookingFuel',
+          'commute',
+          'indoorFiltration',
+          'vulnerableMembers',
+          'completedActionsToday',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.userId is string &&
+        data.userId.size() >= 1 &&
+        data.userId.size() <= 128 &&
+        data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId == request.auth.uid &&
+        data.city is string &&
+        data.city.size() >= 1 &&
+        data.city.size() <= 100 &&
+        data.citySlug is string &&
+        data.citySlug.size() >= 1 &&
+        data.citySlug.size() <= 128 &&
+        data.citySlug.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.latitude is number &&
+        data.latitude >= -90 &&
+        data.latitude <= 90 &&
+        data.longitude is number &&
+        data.longitude >= -180 &&
+        data.longitude <= 180 &&
+        data.cookingFuel is string &&
+        data.cookingFuel.size() <= 20 &&
+        (data.cookingFuel == 'gas' || data.cookingFuel == 'induction') &&
+        data.commute is string &&
+        data.commute.size() <= 20 &&
+        (data.commute == 'car' || data.commute == 'two_wheeler' || data.commute == 'public_transit' || data.commute == 'wfh') &&
+        data.indoorFiltration is string &&
+        data.indoorFiltration.size() <= 20 &&
+        (data.indoorFiltration == 'has_purifier' || data.indoorFiltration == 'no_purifier') &&
+        data.vulnerableMembers is string &&
+        data.vulnerableMembers.size() <= 10 &&
+        (data.vulnerableMembers == 'yes' || data.vulnerableMembers == 'no') &&
+        data.completedActionsToday is list &&
+        data.completedActionsToday.size() <= 10 &&
+        (data.completedActionsToday.size() == 0 || (data.completedActionsToday[0] is string && data.completedActionsToday[0].size() <= 64)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCommunityImpact(data, citySlug) {
+      return data.keys().hasAll([
+          'citySlug',
+          'cityName',
+          'familiesCount',
+          'co2AvoidedKg',
+          'noxAvoidedGrams',
+          'recentActions',
+          'lastActionBy',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'citySlug',
+          'cityName',
+          'familiesCount',
+          'co2AvoidedKg',
+          'noxAvoidedGrams',
+          'recentActions',
+          'lastActionBy',
+          'updatedAt'
+        ]) &&
+        data.citySlug is string &&
+        data.citySlug.size() >= 1 &&
+        data.citySlug.size() <= 128 &&
+        data.citySlug.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.citySlug == citySlug &&
+        data.cityName is string &&
+        data.cityName.size() >= 1 &&
+        data.cityName.size() <= 100 &&
+        !data.cityName.matches('.*GPS.*') &&
+        !data.cityName.matches('.*[0-9]+\\.[0-9]+°.*') &&
+        data.familiesCount is number &&
+        data.familiesCount >= 1 &&
+        data.familiesCount <= 10000000 &&
+        data.co2AvoidedKg is number &&
+        data.co2AvoidedKg >= 0 &&
+        data.co2AvoidedKg <= 100000000 &&
+        data.noxAvoidedGrams is number &&
+        data.noxAvoidedGrams >= 0 &&
+        data.noxAvoidedGrams <= 100000000 &&
+        data.recentActions is list &&
+        data.recentActions.size() >= 1 &&
+        data.recentActions.size() <= 10 &&
+        data.recentActions[0] is string &&
+        data.recentActions[0].size() >= 1 &&
+        data.recentActions[0].size() <= 240 &&
+        !data.recentActions[0].matches('.*[0-9]+\\.[0-9]+°.*') &&
+        data.lastActionBy is string &&
+        data.lastActionBy.size() >= 1 &&
+        data.lastActionBy.size() <= 128 &&
+        data.lastActionBy.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.lastActionBy == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    // Startup connectivity check endpoint
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, create, update, delete: if false;
+    }
+
+    // Household Lifestyle Profile (strictly owner-isolated)
+    match /households/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidHousehold(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidHousehold(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'city',
+          'citySlug',
+          'latitude',
+          'longitude',
+          'cookingFuel',
+          'commute',
+          'indoorFiltration',
+          'vulnerableMembers',
+          'completedActionsToday',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() &&
+        isValidId(userId) &&
+        request.auth.uid == userId;
+    }
+
+    // Neighborhood Impact Counter per City (anonymized aggregate stats with bounded single-action increments)
+    match /community_impact/{citySlug} {
+      allow get: if isValidId(citySlug);
+      allow list: if false;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(citySlug) &&
+        isValidCommunityImpact(incoming(), citySlug) &&
+        incoming().familiesCount == 1 &&
+        incoming().co2AvoidedKg <= 25 &&
+        incoming().noxAvoidedGrams <= 150 &&
+        incoming().recentActions.size() == 1 &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(citySlug) &&
+        isValidCommunityImpact(incoming(), citySlug) &&
+        incoming().citySlug == existing().citySlug &&
+        incoming().familiesCount >= existing().familiesCount &&
+        incoming().familiesCount <= existing().familiesCount + 1 &&
+        incoming().co2AvoidedKg >= existing().co2AvoidedKg &&
+        incoming().co2AvoidedKg <= existing().co2AvoidedKg + 25 &&
+        incoming().noxAvoidedGrams >= existing().noxAvoidedGrams &&
+        incoming().noxAvoidedGrams <= existing().noxAvoidedGrams + 150 &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'cityName',
+          'familiesCount',
+          'co2AvoidedKg',
+          'noxAvoidedGrams',
+          'recentActions',
+          'lastActionBy',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+  }
+}

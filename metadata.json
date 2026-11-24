@@ -1,0 +1,6 @@
+{
+  "name": "SmogWise",
+  "description": "Personalized winter smog navigation, safe ventilation window calculator, indoor air quality hacks, and real-time neighborhood impact tracker for families.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,330 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Table2 } from 'lucide-react';
+import { HourlyAirPoint, SafeVentilationWindow } from '../types';
+import { formatHourLabel } from '../utils/smogLogic';
+
+interface HourlyForecastChartProps {
+  cityName: string;
+  citySlug: string;
+  hourlyPoints: HourlyAirPoint[];
+  safeWindow: SafeVentilationWindow;
+  isLoadingWeather: boolean;
+  isSevere: boolean;
+}
+
+/**
+ * Pure keyboard navigation helper for the 24-hour forecast chart toolbar.
+ * Supports roving focus via ArrowLeft, ArrowRight, Home, and End keys.
+ */
+export function getNextHourlyBarIndex(
+  currentIndex: number,
+  key: string,
+  totalHours = 24
+): number | null {
+  if (totalHours <= 0) return null;
+  const safeCurrent = Math.max(0, Math.min(totalHours - 1, currentIndex));
+
+  switch (key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      return (safeCurrent + 1) % totalHours;
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      return (safeCurrent - 1 + totalHours) % totalHours;
+    case 'Home':
+      return 0;
+    case 'End':
+      return totalHours - 1;
+    default:
+      return null;
+  }
+}
+
+export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.memo(({
+  cityName,
+  citySlug,
+  hourlyPoints,
+  safeWindow,
+  isLoadingWeather,
+  isSevere,
+}) => {
+  const [selectedHourIdx, setSelectedHourIdx] = useState<number>(0);
+  const barButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Reset selected hour whenever city or safe window changes
+  useEffect(() => {
+    setSelectedHourIdx(0);
+  }, [citySlug, safeWindow.windowLabel]);
+
+  // Dynamically scale bar heights relative to Math.max(...next24HoursPm25, 20)
+  const maxPm25 = Math.max(20, ...hourlyPoints.map((pt) => pt.pm25));
+
+  const inspectedPoint =
+    hourlyPoints[selectedHourIdx] ||
+    hourlyPoints[safeWindow.startHour] ||
+    hourlyPoints[0];
+
+  const handleBarKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    hourIndex: number
+  ) => {
+    const nextIdx = getNextHourlyBarIndex(
+      hourIndex,
+      event.key,
+      hourlyPoints.length
+    );
+    if (nextIdx === null) return;
+
+    event.preventDefault();
+    setSelectedHourIdx(nextIdx);
+    barButtonRefs.current[nextIdx]?.focus();
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Upcoming 24-Hour PM2.5 Forecast &amp; Safe Ventilation Window
+          </h3>
+          <p className="text-xs text-slate-600">
+            Green shaded bars mark the 2-hour Safe Ventilation Window ({safeWindow.windowLabel}). Starts at Now for the upcoming 24 consecutive hours. Click any bar or use arrow keys; expand table below.
+          </p>
+        </div>
+
+        {/* Selected Hour Readout */}
+        {inspectedPoint && (
+          <div
+            data-testid="selected-hour-readout"
+            aria-live="polite"
+            aria-atomic="true"
+            className="flex flex-wrap items-center gap-3 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 font-mono-tabular"
+          >
+            <span className="font-semibold text-slate-900">
+              {inspectedPoint.label}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span
+              className={
+                inspectedPoint.isInSafeWindow && !isSevere
+                  ? 'text-emerald-800 font-semibold'
+                  : inspectedPoint.pm25 >= 150
+                  ? 'text-rose-700 font-semibold'
+                  : 'text-slate-700'
+              }
+            >
+              PM2.5: {Math.round(inspectedPoint.pm25)} µg/m³
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-slate-700">
+              Wind: {inspectedPoint.windSpeedKmh} km/h
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-slate-700">
+              Temp: {inspectedPoint.temperatureC}°C
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 24-Hour Interactive Bar Chart with Roving TabIndex Keyboard Navigation */}
+      <div
+        className="relative pt-6 pb-2 px-2 sm:px-4 bg-slate-50/70 border border-slate-200 rounded-xl"
+        role="region"
+        aria-label="24-hour PM2.5 forecast chart"
+      >
+        {isLoadingWeather ? (
+          <div
+            role="status"
+            className="h-40 flex items-center justify-center text-xs text-slate-600"
+          >
+            Loading 24-hour atmospheric forecast...
+          </div>
+        ) : (
+          <div
+            role="group"
+            aria-label="Hourly PM2.5 forecast bars. Use Left and Right arrow keys to inspect each hour."
+            className="grid grid-cols-24 gap-1 sm:gap-1.5 items-end h-40"
+          >
+            {hourlyPoints.map((pt) => {
+              const heightPct = Math.max(
+                10,
+                Math.min(100, Math.round((pt.pm25 / maxPm25) * 100))
+              );
+              const isSelected = pt.hourIndex === selectedHourIdx;
+              let barColor = 'bg-slate-500 hover:bg-slate-600';
+              if (pt.isInSafeWindow && !isSevere) {
+                barColor = 'bg-emerald-600 hover:bg-emerald-700';
+              } else if (pt.pm25 >= 250) {
+                barColor = 'bg-rose-700 hover:bg-rose-800';
+              } else if (pt.pm25 >= 150) {
+                barColor = 'bg-rose-600 hover:bg-rose-700';
+              } else if (pt.pm25 >= 90) {
+                barColor = 'bg-amber-600 hover:bg-amber-700';
+              }
+
+              const shortHourText = pt.shortLabel || (pt.hourIndex === 0 ? 'Now' : formatHourLabel(pt.hourIndex, true));
+              const isLabelVisible = pt.hourIndex % 2 === 0;
+              const roundedPm25 = Math.round(pt.pm25);
+
+              return (
+                <div
+                  key={pt.hourIndex}
+                  className="relative h-full flex flex-col justify-end"
+                >
+                  {pt.isInSafeWindow &&
+                    !isSevere &&
+                    pt.hourIndex === safeWindow.startHour && (
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute -top-5 left-0 text-[10px] font-semibold text-emerald-800 whitespace-nowrap font-mono-tabular"
+                      >
+                        Safe 2h Window
+                      </span>
+                    )}
+                  <button
+                    ref={(el) => {
+                      barButtonRefs.current[pt.hourIndex] = el;
+                    }}
+                    type="button"
+                    data-hour-index={pt.hourIndex}
+                    tabIndex={isSelected ? 0 : -1}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedHourIdx(pt.hourIndex)}
+                    onFocus={() => setSelectedHourIdx(pt.hourIndex)}
+                    onMouseEnter={() => setSelectedHourIdx(pt.hourIndex)}
+                    onKeyDown={(e) => handleBarKeyDown(e, pt.hourIndex)}
+                    className={`group relative w-full h-full flex flex-col justify-end items-center rounded-md px-0.5 py-1 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 ${
+                      pt.isInSafeWindow && !isSevere
+                        ? 'bg-emerald-500/15 ring-1 ring-emerald-500/40'
+                        : isSelected
+                        ? 'bg-slate-200/70'
+                        : ''
+                    }`}
+                  >
+                    <span className="text-[10px] font-mono-tabular text-slate-600 mb-1 hidden md:block">
+                      {roundedPm25}
+                    </span>
+                    <span className="sr-only">
+                      {' '}PM2.5 {roundedPm25} micrograms per cubic meter at{' '}
+                    </span>
+                    <div
+                      aria-hidden="true"
+                      className={`w-full rounded-t transition-transform duration-150 ${barColor} ${
+                        isSelected ? 'ring-2 ring-slate-900' : ''
+                      }`}
+                      style={{ height: `${heightPct}%` }}
+                    />
+                    <span
+                      className={`mt-1.5 text-[10px] font-mono-tabular whitespace-nowrap transition-opacity ${
+                        pt.isInSafeWindow && !isSevere
+                          ? 'font-bold text-emerald-800'
+                          : isLabelVisible
+                          ? 'text-slate-700 font-medium'
+                          : 'opacity-0 select-none pointer-events-none'
+                      }`}
+                    >
+                      {shortHourText}
+                    </span>
+                    <span className="sr-only">
+                      {' '}({pt.label}), Wind {pt.windSpeedKmh} kilometers per hour, Temperature {pt.temperatureC} degrees Celsius{pt.isInSafeWindow && !isSevere ? ', Safe Ventilation Window' : ''}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Legend Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-2.5 border-t border-slate-200/80 text-xs text-slate-700">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="w-3 h-3 rounded-sm bg-emerald-600 inline-block"
+              />
+              <span>Safe Ventilation Window ({safeWindow.windowLabel})</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="w-3 h-3 rounded-sm bg-amber-600 inline-block"
+              />
+              <span>Elevated (90–149 µg/m³)</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="w-3 h-3 rounded-sm bg-rose-700 inline-block"
+              />
+              <span>Severe Smog (&ge;150 µg/m³)</span>
+            </span>
+          </div>
+          <span className="font-mono-tabular text-slate-600">
+            {isSevere
+              ? 'Alert: Inversion Trapping Active'
+              : 'Afternoon Boundary Layer Dispersion Active'}
+          </span>
+        </div>
+      </div>
+
+      {/* WCAG 2.2 AA Tabular Data Alternative for Screen Readers & Keyboard Users */}
+      <details className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs">
+        <summary className="cursor-pointer font-semibold text-slate-700 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 rounded">
+          <Table2 aria-hidden="true" className="w-3.5 h-3.5 text-emerald-700" />
+          <span>View 24-Hour Air Quality &amp; Wind Forecast Data Table</span>
+        </summary>
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label={`24-hour forecast table for ${cityName}`}
+          className="mt-3 overflow-x-auto rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+        >
+          <table className="w-full text-left border-collapse font-mono-tabular">
+            <caption className="sr-only">
+              24-hour PM2.5, PM10, US AQI, wind speed, and temperature forecast for {cityName}
+            </caption>
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-700">
+                <th scope="col" className="py-1.5 pr-3">Hour</th>
+                <th scope="col" className="py-1.5 pr-3">PM2.5 (µg/m³)</th>
+                <th scope="col" className="py-1.5 pr-3">PM10 (µg/m³)</th>
+                <th scope="col" className="py-1.5 pr-3">Wind (km/h)</th>
+                <th scope="col" className="py-1.5 pr-3">Temp (°C)</th>
+                <th scope="col" className="py-1.5">Window Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hourlyPoints.map((pt) => (
+                <tr
+                  key={pt.hourIndex}
+                  className={`border-b border-slate-100 last:border-b-0 ${
+                    pt.isInSafeWindow
+                      ? 'bg-emerald-50 font-semibold text-emerald-950'
+                      : 'text-slate-700'
+                  }`}
+                >
+                  <td className="py-1.5 pr-3">{pt.label}</td>
+                  <td className="py-1.5 pr-3">{Math.round(pt.pm25)}</td>
+                  <td className="py-1.5 pr-3">{Math.round(pt.pm10)}</td>
+                  <td className="py-1.5 pr-3">{pt.windSpeedKmh}</td>
+                  <td className="py-1.5 pr-3">{pt.temperatureC}</td>
+                  <td className="py-1.5">
+                    {pt.isInSafeWindow
+                      ? 'Safe Ventilation Window'
+                      : pt.pm25 >= 150
+                      ? 'Severe Smog'
+                      : pt.pm25 >= 90
+                      ? 'Elevated'
+                      : 'Moderate'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+});
