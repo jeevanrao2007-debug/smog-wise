@@ -1,17 +1,17 @@
 import React from 'react';
 import { Users, Wind, Activity, ShieldCheck } from 'lucide-react';
+import { APP_LIMITS } from '../constants';
+import { RecordedCommunityImpact } from '../types';
 
 interface NeighborhoodImpactStripProps {
   cityName: string;
-  recordedImpact: {
-    familiesCount: number;
-    co2AvoidedKg: number;
-    noxAvoidedGrams: number;
-    recentActions: string[];
-    sourceMode: 'firestore_live' | 'guest_local';
-  };
+  recordedImpact: RecordedCommunityImpact;
 }
 
+/**
+ * Displays real-time recorded neighborhood clean-air totals (actions, CO2, NOx)
+ * and an anonymized live activity ticker backed by Cloud Firestore or Guest localStorage.
+ */
 export const NeighborhoodImpactStrip: React.FC<NeighborhoodImpactStripProps> = React.memo(({
   cityName,
   recordedImpact,
@@ -126,7 +126,9 @@ export const NeighborhoodImpactStrip: React.FC<NeighborhoodImpactStripProps> = R
               aria-live="polite"
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5"
             >
-              {recordedImpact.recentActions.slice(0, 6).map((actionStr, idx) => (
+              {recordedImpact.recentActions
+                .slice(0, APP_LIMITS.MAX_RECENT_TICKER_ITEMS)
+                .map((actionStr, idx) => (
                 <div
                   key={`${idx}-${actionStr}`}
                   className="px-3.5 py-2.5 rounded-lg bg-slate-800/80 border border-slate-700/70 text-xs text-slate-100 leading-relaxed truncate"

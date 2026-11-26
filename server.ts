@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
+import { GenerateContentConfig, GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import {
   normalizeAiActionCards,
@@ -193,7 +193,7 @@ async function callGeminiModel(
   prompt: string
 ): Promise<string> {
   const tryCall = async (withThinking: boolean) => {
-    const config: Record<string, unknown> = {
+    const config: GenerateContentConfig = {
       systemInstruction:
         'You are an atmospheric scientist and indoor air quality engineer generating deeply personalized, honest, non-medical family smog routines. You must strictly ground every card in the user\'s specific city name, exact PM2.5 levels, safe ventilation window hours, household toggles, and custom question. Always output valid JSON matching the schema.',
       responseMimeType: 'application/json',
@@ -206,7 +206,7 @@ async function callGeminiModel(
       ai.models.generateContent({
         model: modelName,
         contents: prompt,
-        config: config as any,
+        config,
       }),
       GEMINI_TIMEOUT_MS
     );

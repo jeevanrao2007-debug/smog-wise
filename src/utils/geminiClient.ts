@@ -1,4 +1,10 @@
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { GenerateContentConfig, GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
+import {
+  GEMINI_CANDIDATE_MODELS,
+  GEMINI_CLIENT_TIMEOUT_MS,
+  GEMINI_RETRY_BACKOFF_MS,
+  GEMINI_SYSTEM_INSTRUCTION,
+} from '../constants';
 import { ActionCardData, LifestyleProfile, SafeVentilationWindow } from '../types';
 import {
   maskSensitiveErrorDetails,
@@ -152,6 +158,10 @@ Requirements for each card:
 - "tickerSummary": concise verb phrase (e.g. "shifted cooking schedule and ran air filtration during peak smog").`;
 }
 
+/**
+ * Executes the client-side Gemini recommendation generation across the configured
+ * 3-model free-tier fallback chain with structured JSON output.
+ */
 export async function generateClientGeminiRecommendations(req: {
   city: string;
   currentPm25: number;
@@ -173,29 +183,19 @@ export async function generateClientGeminiRecommendations(req: {
   });
   const prompt = buildGeminiClientPrompt(req);
 
-  // Free-tier model fallback chain: gemini-4-hydrogen -> gemini-3.8-flash -> gemini-3.5-flash-lite
-  const modelsToTry = [
-    { name: 'gemini-4-hydrogen', withThinking: true },
-    { name: 'gemini-3.8-flash', withThinking: false },
-    { name: 'gemini-3.5-flash-lite', withThinking: false },
-  ];
-
   let lastError: Error | null = null;
 
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const candidate = modelsToTry[i];
+  for (let i = 0; i < GEMINI_CANDIDATE_MODELS.length; i++) {
+    const candidate = GEMINI_CANDIDATE_MODELS[i];
     try {
-      const systemInstruction =
-        'You are an atmospheric scientist and indoor air quality engineer generating deeply personalized, honest, non-medical family smog routines. You must strictly ground every card in the user\'s specific city name, exact PM2.5 levels, safe ventilation window hours, household toggles, and custom question. Always output valid JSON matching the schema.';
-
       const tryGenerate = async (includeSystemInstruction: boolean) => {
-        const config: Record<string, unknown> = {
+        const config: GenerateContentConfig = {
           responseMimeType: 'application/json',
           responseSchema: GEMINI_RESPONSE_SCHEMA,
         };
 
         if (includeSystemInstruction) {
-          config.systemInstruction = systemInstruction;
+          config.systemInstruction = GEMINI_SYSTEM_INSTRUCTION;
         }
 
         if (candidate.withThinking) {
@@ -204,15 +204,15 @@ export async function generateClientGeminiRecommendations(req: {
 
         const contents = includeSystemInstruction
           ? prompt
-          : `SYSTEM INSTRUCTIONS:\n${systemInstruction}\n\nUSER REQUEST:\n${prompt}`;
+          : `SYSTEM INSTRUCTIONS:\n${GEMINI_SYSTEM_INSTRUCTION}\n\nUSER REQUEST:\n${prompt}`;
 
         return await withTimeout(
           ai.models.generateContent({
             model: candidate.name,
             contents,
-            config: config as any,
+            config,
           }),
-          10000
+          GEMINI_CLIENT_TIMEOUT_MS
         );
       };
 
@@ -252,9 +252,8 @@ export async function generateClientGeminiRecommendations(req: {
       const safeMsg = maskSensitiveErrorDetails(err);
       lastError = new Error(safeMsg);
       console.warn(`[Gemini Chain] ${candidate.name} failed (${safeMsg}). Trying next model...`);
-      // Brief 600ms backoff between model retries
-      if (i < modelsToTry.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
+      if (i < GEMINI_CANDIDATE_MODELS.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_BACKOFF_MS));
       }
     }
   }

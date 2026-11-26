@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Table2 } from 'lucide-react';
+import { DISPERSION_CONFIG, PM25_THRESHOLDS } from '../constants';
 import { HourlyAirPoint, SafeVentilationWindow } from '../types';
 import { formatHourLabel } from '../utils/smogLogic';
+import { HourlyForecastTable } from './HourlyForecastTable';
 
 interface HourlyForecastChartProps {
   cityName: string;
@@ -14,12 +15,12 @@ interface HourlyForecastChartProps {
 
 /**
  * Pure keyboard navigation helper for the 24-hour forecast chart toolbar.
- * Supports roving focus via ArrowLeft, ArrowRight, Home, and End keys.
+ * Supports roving focus via ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Home, and End keys.
  */
 export function getNextHourlyBarIndex(
   currentIndex: number,
   key: string,
-  totalHours = 24
+  totalHours: number = DISPERSION_CONFIG.HOURS_PER_FORECAST
 ): number | null {
   if (totalHours <= 0) return null;
   const safeCurrent = Math.max(0, Math.min(totalHours - 1, currentIndex));
@@ -40,6 +41,25 @@ export function getNextHourlyBarIndex(
   }
 }
 
+/**
+ * Resolves Tailwind bar fill classes for an hourly PM2.5 reading.
+ */
+function getHourlyBarColorClass(
+  pm25: number,
+  isInSafeWindow: boolean,
+  isSevere: boolean
+): string {
+  if (isInSafeWindow && !isSevere) return 'bg-emerald-600 hover:bg-emerald-700';
+  if (pm25 >= PM25_THRESHOLDS.HAZARDOUS_MIN) return 'bg-rose-700 hover:bg-rose-800';
+  if (pm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN) return 'bg-rose-600 hover:bg-rose-700';
+  if (pm25 >= PM25_THRESHOLDS.ELEVATED_MIN) return 'bg-amber-600 hover:bg-amber-700';
+  return 'bg-slate-500 hover:bg-slate-600';
+}
+
+/**
+ * Interactive upcoming 24-hour PM2.5 bar chart featuring dynamic scaling,
+ * roving tabindex keyboard navigation, and an accessible tabular alternative.
+ */
 export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.memo(({
   cityName,
   citySlug,
@@ -51,13 +71,14 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
   const [selectedHourIdx, setSelectedHourIdx] = useState<number>(0);
   const barButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  // Reset selected hour whenever city or safe window changes
   useEffect(() => {
     setSelectedHourIdx(0);
   }, [citySlug, safeWindow.windowLabel]);
 
-  // Dynamically scale bar heights relative to Math.max(...next24HoursPm25, 20)
-  const maxPm25 = Math.max(20, ...hourlyPoints.map((pt) => pt.pm25));
+  const maxPm25 = Math.max(
+    PM25_THRESHOLDS.CHART_MIN_SCALE,
+    ...hourlyPoints.map((pt) => pt.pm25)
+  );
 
   const inspectedPoint =
     hourlyPoints[selectedHourIdx] ||
@@ -92,7 +113,6 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
           </p>
         </div>
 
-        {/* Selected Hour Readout */}
         {inspectedPoint && (
           <div
             data-testid="selected-hour-readout"
@@ -108,7 +128,7 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
               className={
                 inspectedPoint.isInSafeWindow && !isSevere
                   ? 'text-emerald-800 font-semibold'
-                  : inspectedPoint.pm25 >= 150
+                  : inspectedPoint.pm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN
                   ? 'text-rose-700 font-semibold'
                   : 'text-slate-700'
               }
@@ -127,7 +147,6 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
         )}
       </div>
 
-      {/* 24-Hour Interactive Bar Chart with Roving TabIndex Keyboard Navigation */}
       <div
         className="relative pt-6 pb-2 px-2 sm:px-4 bg-slate-50/70 border border-slate-200 rounded-xl"
         role="region"
@@ -152,18 +171,14 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
                 Math.min(100, Math.round((pt.pm25 / maxPm25) * 100))
               );
               const isSelected = pt.hourIndex === selectedHourIdx;
-              let barColor = 'bg-slate-500 hover:bg-slate-600';
-              if (pt.isInSafeWindow && !isSevere) {
-                barColor = 'bg-emerald-600 hover:bg-emerald-700';
-              } else if (pt.pm25 >= 250) {
-                barColor = 'bg-rose-700 hover:bg-rose-800';
-              } else if (pt.pm25 >= 150) {
-                barColor = 'bg-rose-600 hover:bg-rose-700';
-              } else if (pt.pm25 >= 90) {
-                barColor = 'bg-amber-600 hover:bg-amber-700';
-              }
-
-              const shortHourText = pt.shortLabel || (pt.hourIndex === 0 ? 'Now' : formatHourLabel(pt.hourIndex, true));
+              const barColor = getHourlyBarColorClass(
+                pt.pm25,
+                pt.isInSafeWindow,
+                isSevere
+              );
+              const shortHourText =
+                pt.shortLabel ||
+                (pt.hourIndex === 0 ? 'Now' : formatHourLabel(pt.hourIndex, true));
               const isLabelVisible = pt.hourIndex % 2 === 0;
               const roundedPm25 = Math.round(pt.pm25);
 
@@ -236,7 +251,6 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
           </div>
         )}
 
-        {/* Legend Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-2.5 border-t border-slate-200/80 text-xs text-slate-700">
           <div className="flex flex-wrap items-center gap-4">
             <span className="inline-flex items-center gap-1.5">
@@ -269,62 +283,7 @@ export const HourlyForecastChart: React.FC<HourlyForecastChartProps> = React.mem
         </div>
       </div>
 
-      {/* WCAG 2.2 AA Tabular Data Alternative for Screen Readers & Keyboard Users */}
-      <details className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs">
-        <summary className="cursor-pointer font-semibold text-slate-700 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 rounded">
-          <Table2 aria-hidden="true" className="w-3.5 h-3.5 text-emerald-700" />
-          <span>View 24-Hour Air Quality &amp; Wind Forecast Data Table</span>
-        </summary>
-        <div
-          tabIndex={0}
-          role="region"
-          aria-label={`24-hour forecast table for ${cityName}`}
-          className="mt-3 overflow-x-auto rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
-        >
-          <table className="w-full text-left border-collapse font-mono-tabular">
-            <caption className="sr-only">
-              24-hour PM2.5, PM10, US AQI, wind speed, and temperature forecast for {cityName}
-            </caption>
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-700">
-                <th scope="col" className="py-1.5 pr-3">Hour</th>
-                <th scope="col" className="py-1.5 pr-3">PM2.5 (µg/m³)</th>
-                <th scope="col" className="py-1.5 pr-3">PM10 (µg/m³)</th>
-                <th scope="col" className="py-1.5 pr-3">Wind (km/h)</th>
-                <th scope="col" className="py-1.5 pr-3">Temp (°C)</th>
-                <th scope="col" className="py-1.5">Window Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hourlyPoints.map((pt) => (
-                <tr
-                  key={pt.hourIndex}
-                  className={`border-b border-slate-100 last:border-b-0 ${
-                    pt.isInSafeWindow
-                      ? 'bg-emerald-50 font-semibold text-emerald-950'
-                      : 'text-slate-700'
-                  }`}
-                >
-                  <td className="py-1.5 pr-3">{pt.label}</td>
-                  <td className="py-1.5 pr-3">{Math.round(pt.pm25)}</td>
-                  <td className="py-1.5 pr-3">{Math.round(pt.pm10)}</td>
-                  <td className="py-1.5 pr-3">{pt.windSpeedKmh}</td>
-                  <td className="py-1.5 pr-3">{pt.temperatureC}</td>
-                  <td className="py-1.5">
-                    {pt.isInSafeWindow
-                      ? 'Safe Ventilation Window'
-                      : pt.pm25 >= 150
-                      ? 'Severe Smog'
-                      : pt.pm25 >= 90
-                      ? 'Elevated'
-                      : 'Moderate'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+      <HourlyForecastTable cityName={cityName} hourlyPoints={hourlyPoints} />
     </div>
   );
 });

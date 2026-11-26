@@ -1,16 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
-import { CityLocation } from '../types';
+import { CityLocation, GeocodingResult } from '../types';
 import { PRESET_CITIES, toCitySlug } from '../utils/smogLogic';
 import { sanitizePlainText } from '../utils/apiValidation';
-
-interface GeocodingResult {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  country?: string;
-}
 
 // In-memory cache for geocoding queries (avoids repeat network fetches on backspace/typing)
 const geocodingCache = new Map<string, GeocodingResult[]>();
