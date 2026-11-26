@@ -61,13 +61,7 @@ function SmogWiseContent() {
     handleProfileChange,
   } = useLifestyleProfile(userRef, city);
 
-  const {
-    user,
-    isConnectingAuth,
-    authErrorMsg,
-    setAuthErrorMsg,
-    handleAuthAction,
-  } = useSmogAuth({
+  const { user, isConnectingAuth, authErrorMsg, setAuthErrorMsg, handleAuthAction } = useSmogAuth({
     city,
     profile,
     completedKeys,
@@ -98,15 +92,14 @@ function SmogWiseContent() {
     onAnnouncement: setScreenReaderAnnouncement,
   });
 
-  const { celebratingId, recordedCommunityImpact, handleCompleteAction } =
-    useCommunityImpact({
-      user,
-      city,
-      profile,
-      completedKeys,
-      setCompletedKeys,
-      onAnnouncement: setScreenReaderAnnouncement,
-    });
+  const { celebratingId, recordedCommunityImpact, handleCompleteAction } = useCommunityImpact({
+    user,
+    city,
+    profile,
+    completedKeys,
+    setCompletedKeys,
+    onAnnouncement: setScreenReaderAnnouncement,
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -129,11 +122,7 @@ function SmogWiseContent() {
         {screenReaderAnnouncement}
       </div>
 
-      <AppHeader
-        user={user}
-        isConnectingAuth={isConnectingAuth}
-        onAuthAction={handleAuthAction}
-      />
+      <AppHeader user={user} isConnectingAuth={isConnectingAuth} onAuthAction={handleAuthAction} />
 
       {/* Main Content Container */}
       <main

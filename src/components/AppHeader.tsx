@@ -11,11 +11,7 @@ interface AppHeaderProps {
 /**
  * Sticky top navigation bar featuring section jump links and Google/Guest session control.
  */
-export const AppHeader: React.FC<AppHeaderProps> = ({
-  user,
-  isConnectingAuth,
-  onAuthAction,
-}) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({ user, isConnectingAuth, onAuthAction }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xs border-b border-slate-200 px-4 sm:px-8 py-3.5">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-8">
@@ -66,16 +62,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             {user && !user.isAnonymous ? (
               <>
                 <LogOut aria-hidden="true" className="w-3.5 h-3.5" />
-                <span>
-                  Sign Out ({user.displayName?.split(' ')[0] || 'Family'})
-                </span>
+                <span>Sign Out ({user.displayName?.split(' ')[0] || 'Family'})</span>
               </>
             ) : (
               <>
                 <LogIn aria-hidden="true" className="w-3.5 h-3.5" />
-                <span>
-                  {isConnectingAuth ? 'Connecting...' : 'Sign in with Google'}
-                </span>
+                <span>{isConnectingAuth ? 'Connecting...' : 'Sign in with Google'}</span>
               </>
             )}
           </button>

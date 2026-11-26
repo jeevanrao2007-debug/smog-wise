@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AuthUserSummary,
+  FirebaseClientModule,
   loadFirebaseClient,
   markFirebaseSessionActive,
 } from '../firebase';
@@ -14,10 +15,8 @@ interface UseSmogAuthParams {
   city: CityLocation;
   profile: LifestyleProfile;
   completedKeys: string[];
-  onHydrateHousehold: (
-    loadedProfile?: LifestyleProfile,
-    loadedCompletedKeys?: string[]
-  ) => void;
+  onHydrateHousehold: (loadedProfile?: LifestyleProfile, loadedCompletedKeys?: string[]) => void;
+  loadClientFn?: () => Promise<FirebaseClientModule>;
 }
 
 /**
@@ -29,6 +28,7 @@ export function useSmogAuth({
   profile,
   completedKeys,
   onHydrateHousehold,
+  loadClientFn = loadFirebaseClient,
 }: UseSmogAuthParams) {
   const [user, setUser] = useState<AuthUserSummary | null>(null);
   const [isConnectingAuth, setIsConnectingAuth] = useState(false);
@@ -51,7 +51,7 @@ export function useSmogAuth({
     let isCancelled = false;
     let unsubscribeAuth: (() => void) | null = null;
 
-    loadFirebaseClient()
+    loadClientFn()
       .then((client) => {
         if (isCancelled) return;
         unsubscribeAuth = client.subscribeToAuthState(async (currentUser) => {
@@ -81,24 +81,21 @@ export function useSmogAuth({
           );
 
           try {
-            const loaded = await client.loadOrInitializeHousehold(
-              currentUser.uid,
-              {
-                userId: currentUser.uid,
-                city: sanitizePublicCityLabel(activeCity.name),
-                citySlug: activeCity.slug.slice(0, 128),
-                latitude: roundCoordinateToCityGrid(activeCity.latitude),
-                longitude: roundCoordinateToCityGrid(activeCity.longitude),
-                cookingFuel: activeProfile.cookingFuel,
-                commute: activeProfile.commute,
-                indoorFiltration: activeProfile.indoorFiltration,
-                vulnerableMembers: activeProfile.vulnerableMembers,
-                completedActionsToday: activeCompleted.slice(
-                  0,
-                  APP_LIMITS.MAX_DAILY_COMPLETED_ACTIONS
-                ),
-              }
-            );
+            const loaded = await client.loadOrInitializeHousehold(currentUser.uid, {
+              userId: currentUser.uid,
+              city: sanitizePublicCityLabel(activeCity.name),
+              citySlug: activeCity.slug.slice(0, 128),
+              latitude: roundCoordinateToCityGrid(activeCity.latitude),
+              longitude: roundCoordinateToCityGrid(activeCity.longitude),
+              cookingFuel: activeProfile.cookingFuel,
+              commute: activeProfile.commute,
+              indoorFiltration: activeProfile.indoorFiltration,
+              vulnerableMembers: activeProfile.vulnerableMembers,
+              completedActionsToday: activeCompleted.slice(
+                0,
+                APP_LIMITS.MAX_DAILY_COMPLETED_ACTIONS
+              ),
+            });
             if (isCancelled) return;
             hydrateCallbackRef.current(loaded.profile, loaded.completedActionsToday);
           } catch (err) {
@@ -116,7 +113,7 @@ export function useSmogAuth({
       isCancelled = true;
       unsubscribeAuth?.();
     };
-  }, []);
+  }, [loadClientFn]);
 
   const handleAuthAction = async () => {
     if (isConnectingAuth) return;
@@ -124,7 +121,7 @@ export function useSmogAuth({
     setIsConnectingAuth(true);
 
     try {
-      const client = await loadFirebaseClient();
+      const client = await loadClientFn();
 
       if (user && !user.isAnonymous) {
         await client.signOutUser();
@@ -146,17 +143,12 @@ export function useSmogAuth({
         setAuthErrorMsg(
           'Firebase domain unauthorized: "localhost" is not added to Authorized Domains in Firebase Console > Authentication > Settings.'
         );
-      } else if (
-        msg.includes('redirect_uri_mismatch') ||
-        msg.includes('operation-not-allowed')
-      ) {
+      } else if (msg.includes('redirect_uri_mismatch') || msg.includes('operation-not-allowed')) {
         setAuthErrorMsg(
           'Google Sign-In is not enabled or OAuth redirect URI is mismatched in this Firebase project.'
         );
       } else {
-        setAuthErrorMsg(
-          `Google Sign-In error: ${msg}. Instant Guest Mode remains active.`
-        );
+        setAuthErrorMsg(`Google Sign-In error: ${msg}. Instant Guest Mode remains active.`);
       }
     } finally {
       setIsConnectingAuth(false);

@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      let parsedError: { error?: string; operationType?: string; path?: string } | null = null;
+      let parsedError: { error?: string; operationType?: string; path?: string } | null;
       try {
         parsedError = JSON.parse(this.state.errorMessage);
       } catch {
@@ -37,10 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div
-          role="alert"
-          className="min-h-screen bg-slate-50 flex items-center justify-center p-6"
-        >
+        <div role="alert" className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
           <div className="max-w-lg w-full bg-white border border-slate-200 rounded-xl p-6 space-y-4">
             <div className="flex items-center gap-3 text-rose-700">
               <AlertTriangle aria-hidden="true" className="w-6 h-6 shrink-0" />

@@ -73,11 +73,8 @@ export function calculateHouseholdExposureImpact(params: {
   );
   const safeWeight = clampFinite(params.exposureWeight, 0.1, 1.0);
 
-  const avoidedPm25UgM3 = Number(
-    (safeAmbient * (safePct / 100) * safeWeight).toFixed(1)
-  );
-  const rawCigs =
-    avoidedPm25UgM3 / IMPACT_CONSTANTS.PM25_UG_M3_PER_EQUIVALENT_CIGARETTE;
+  const avoidedPm25UgM3 = Number((safeAmbient * (safePct / 100) * safeWeight).toFixed(1));
+  const rawCigs = avoidedPm25UgM3 / IMPACT_CONSTANTS.PM25_UG_M3_PER_EQUIVALENT_CIGARETTE;
   const passiveCigarettesAvoided = Number(
     clampFinite(
       Math.round(rawCigs * 10) / 10,
@@ -107,11 +104,9 @@ export function calculateNeighborhoodEmissionImpact(params: {
   noxGrams: number;
 }): EmissionImpactEstimate {
   const co2AvoidedKg = Number(
-    clampFinite(
-      Math.round(params.co2Kg * 10) / 10,
-      0,
-      IMPACT_CONSTANTS.MAX_ACTION_CO2_KG
-    ).toFixed(1)
+    clampFinite(Math.round(params.co2Kg * 10) / 10, 0, IMPACT_CONSTANTS.MAX_ACTION_CO2_KG).toFixed(
+      1
+    )
   );
   const noxAvoidedGrams = Number(
     clampFinite(
@@ -143,8 +138,7 @@ export function createImpactMethodology(params: {
   return {
     basis: params.basis ?? 'modelled',
     rationale: params.rationale,
-    targetPollutants:
-      params.targetPollutants.length > 0 ? params.targetPollutants : ['PM2.5'],
+    targetPollutants: params.targetPollutants.length > 0 ? params.targetPollutants : ['PM2.5'],
     formulaSummary: params.formulaSummary,
     assumptions: params.assumptions,
     uncertaintyNote:
@@ -168,7 +162,7 @@ export function getLocalDateKey(date: Date = new Date()): string {
  * preventing same-day double counting while automatically resetting each calendar day.
  */
 export function toDailyActionKey(actionId: string, dateKey: string = getLocalDateKey()): string {
-  const cleanId = actionId.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32) || 'action';
+  const cleanId = actionId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'action';
   const cleanDate = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : getLocalDateKey();
   return `${cleanDate}:${cleanId}`.slice(0, 64);
 }

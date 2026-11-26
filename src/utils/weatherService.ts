@@ -165,7 +165,9 @@ export async function reverseGeocodeCoarseCoords(
       if (name && typeof name === 'string' && name.trim().length > 0) {
         return {
           name: name.trim(),
-          country: data.address?.country ? String(data.address.country).trim() : 'Coarse Regional Grid',
+          country: data.address?.country
+            ? String(data.address.country).trim()
+            : 'Coarse Regional Grid',
           latitude: lat,
           longitude: lon,
           slug: toCitySlug(name.trim()),
@@ -198,8 +200,8 @@ export function normalizeOpenMeteoHourlyResponse(
   const times = Array.isArray(aqHourly?.time)
     ? aqHourly.time
     : Array.isArray(wxHourly?.time)
-    ? wxHourly.time
-    : [];
+      ? wxHourly.time
+      : [];
 
   if (times.length < 24) {
     return null;

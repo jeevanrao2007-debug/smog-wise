@@ -33,12 +33,24 @@ export const HourlyForecastTable: React.FC<HourlyForecastTableProps> = ({
           </caption>
           <thead>
             <tr className="border-b border-slate-200 text-slate-700">
-              <th scope="col" className="py-1.5 pr-3">Hour</th>
-              <th scope="col" className="py-1.5 pr-3">PM2.5 (µg/m³)</th>
-              <th scope="col" className="py-1.5 pr-3">PM10 (µg/m³)</th>
-              <th scope="col" className="py-1.5 pr-3">Wind (km/h)</th>
-              <th scope="col" className="py-1.5 pr-3">Temp (°C)</th>
-              <th scope="col" className="py-1.5">Window Status</th>
+              <th scope="col" className="py-1.5 pr-3">
+                Hour
+              </th>
+              <th scope="col" className="py-1.5 pr-3">
+                PM2.5 (µg/m³)
+              </th>
+              <th scope="col" className="py-1.5 pr-3">
+                PM10 (µg/m³)
+              </th>
+              <th scope="col" className="py-1.5 pr-3">
+                Wind (km/h)
+              </th>
+              <th scope="col" className="py-1.5 pr-3">
+                Temp (°C)
+              </th>
+              <th scope="col" className="py-1.5">
+                Window Status
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -60,10 +72,10 @@ export const HourlyForecastTable: React.FC<HourlyForecastTableProps> = ({
                   {pt.isInSafeWindow
                     ? 'Safe Ventilation Window'
                     : pt.pm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN
-                    ? 'Severe Smog'
-                    : pt.pm25 >= PM25_THRESHOLDS.ELEVATED_MIN
-                    ? 'Elevated'
-                    : 'Moderate'}
+                      ? 'Severe Smog'
+                      : pt.pm25 >= PM25_THRESHOLDS.ELEVATED_MIN
+                        ? 'Elevated'
+                        : 'Moderate'}
                 </td>
               </tr>
             ))}

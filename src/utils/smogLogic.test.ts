@@ -42,17 +42,13 @@ test('calculateSafeVentilationWindow rejects incomplete (<24h), NaN, Infinity, a
     /Expected 24 hourly air quality points/
   );
 
-  const nanPm25 = basePoints.map((pt, i) =>
-    i === 14 ? { ...pt, pm25: Number.NaN } : pt
-  );
+  const nanPm25 = basePoints.map((pt, i) => (i === 14 ? { ...pt, pm25: Number.NaN } : pt));
   assert.throws(
     () => calculateSafeVentilationWindow(nanPm25, 10),
     /Invalid PM2\.5 reading at hour 14/
   );
 
-  const negPm25 = basePoints.map((pt, i) =>
-    i === 8 ? { ...pt, pm25: -5 } : pt
-  );
+  const negPm25 = basePoints.map((pt, i) => (i === 8 ? { ...pt, pm25: -5 } : pt));
   assert.throws(
     () => calculateSafeVentilationWindow(negPm25, 10),
     /Invalid PM2\.5 reading at hour 8/
@@ -69,10 +65,7 @@ test('calculateSafeVentilationWindow rejects incomplete (<24h), NaN, Infinity, a
 
 test('calculateSafeVentilationWindow identifies lowest PM2.5 + wind dispersion 2-hour window across upcoming 24 hours', () => {
   const rawPoints = buildSimulatedOrFallbackHourlyPoints(false);
-  const { windowInfo, annotatedPoints } = calculateSafeVentilationWindow(
-    rawPoints,
-    10
-  );
+  const { windowInfo, annotatedPoints } = calculateSafeVentilationWindow(rawPoints, 10);
 
   // Bar 0 must always be "Now"
   assert.equal(annotatedPoints[0].shortLabel, 'Now');
@@ -122,7 +115,9 @@ test('calculateSafeVentilationWindow handles rolling upcoming 24-hour forecast f
   assert.equal(eveningRes.windowInfo.windowLabel, '2:00 PM – 4:00 PM');
   assert.equal(eveningRes.windowInfo.statusType, 'wait_until');
   assert.equal(eveningRes.windowInfo.statusHeadline, 'Best Upcoming Window: 2:00 PM – 4:00 PM');
-  assert.ok(eveningRes.windowInfo.statusSubtext.includes('Keep windows closed during upcoming peak hours'));
+  assert.ok(
+    eveningRes.windowInfo.statusSubtext.includes('Keep windows closed during upcoming peak hours')
+  );
 });
 
 test('calculateSafeVentilationWindow implements the 3 scientific status tiers accurately', () => {
@@ -144,21 +139,42 @@ test('calculateSafeVentilationWindow implements the 3 scientific status tiers ac
   assert.equal(tier1Boundary.windowInfo.statusType, 'open_now');
   assert.equal(tier1Boundary.windowInfo.statusHeadline, 'Clean Air — Safe to Ventilate Anytime');
 
-  // Tier 2: Smog Peaks Present (26 to 150 µg/m³): Now in cleanest window & PM2.5 <= 60 -> Open Windows Now
-  const tier2Open = calculateSafeVentilationWindow(makeConstantPoints(45), 8);
-  assert.equal(tier2Open.windowInfo.statusType, 'open_now');
-  assert.equal(tier2Open.windowInfo.statusHeadline, 'Open Windows Now');
+  // Tier 2 entry boundary at 26 µg/m³ (Now in cleanest window & PM2.5 <= 60)
+  const tier2Entry26 = calculateSafeVentilationWindow(makeConstantPoints(26), 8);
+  assert.equal(tier2Entry26.windowInfo.statusType, 'open_now');
+  assert.equal(tier2Entry26.windowInfo.statusHeadline, 'Open Windows Now');
 
-  // Tier 2: Smog Peaks Present: PM2.5 > 60 -> Best Upcoming Window: [Start] – [End]
-  const tier2Wait = calculateSafeVentilationWindow(makeConstantPoints(90), 8);
-  assert.equal(tier2Wait.windowInfo.statusType, 'wait_until');
-  assert.ok(tier2Wait.windowInfo.statusHeadline.startsWith('Best Upcoming Window:'));
+  // Tier 2 Open Windows Now upper boundary at 60 µg/m³
+  const tier2Boundary60 = calculateSafeVentilationWindow(makeConstantPoints(60), 8);
+  assert.equal(tier2Boundary60.windowInfo.statusType, 'open_now');
+  assert.equal(tier2Boundary60.windowInfo.statusHeadline, 'Open Windows Now');
+
+  // Tier 2 crossing 61 µg/m³ -> Best Upcoming Window (wait_until)
+  const tier2Boundary61 = calculateSafeVentilationWindow(makeConstantPoints(61), 8);
+  assert.equal(tier2Boundary61.windowInfo.statusType, 'wait_until');
+  assert.ok(tier2Boundary61.windowInfo.statusHeadline.startsWith('Best Upcoming Window:'));
+
+  // Tier 2 upper boundary at 150 µg/m³ (must remain wait_until, NOT keep_sealed)
+  const tier2Upper150 = calculateSafeVentilationWindow(makeConstantPoints(150), 8);
+  assert.equal(tier2Upper150.windowInfo.statusType, 'wait_until');
+  assert.ok(tier2Upper150.windowInfo.statusHeadline.startsWith('Best Upcoming Window:'));
 
   // Tier 3: Severe Winter Smog (cleanest upcoming 2-hour window > 150 µg/m³) -> Severe Smog — Keep Windows Sealed
   const tier3Boundary = calculateSafeVentilationWindow(makeConstantPoints(151), 8);
   assert.equal(tier3Boundary.windowInfo.statusType, 'keep_sealed');
   assert.equal(tier3Boundary.windowInfo.statusHeadline, 'Severe Smog — Keep Windows Sealed');
-  assert.ok(tier3Boundary.windowInfo.statusSubtext.includes('exceeding the 150 µg/m³ safety ceiling'));
+  assert.ok(
+    tier3Boundary.windowInfo.statusSubtext.includes('exceeding the 150 µg/m³ safety ceiling')
+  );
+
+  // Verify rolling 24-hour slice starts strictly at Now (offset 0..23) with zero past hours
+  assert.deepEqual(
+    tier2Entry26.annotatedPoints.map((pt) => pt.hourIndex),
+    Array.from({ length: 24 }, (_, idx) => idx)
+  );
+  assert.equal(tier2Entry26.annotatedPoints[0].shortLabel, 'Now');
+  assert.ok(tier2Entry26.annotatedPoints[0].label.startsWith('Now (8:00 AM)'));
+  assert.equal(tier2Entry26.annotatedPoints[1].shortLabel, '9 AM');
 });
 
 test('calculateSafeVentilationWindow triggers Severe Smog — Keep Windows Sealed on simulated severe smog curve', () => {

@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { AddressInfo } from 'node:net';
 import { createApp, CreateAppOptions } from '../../server';
-import {
-  buildSimulatedOrFallbackHourlyPoints,
-  calculateSafeVentilationWindow,
-} from './smogLogic';
+import { buildSimulatedOrFallbackHourlyPoints, calculateSafeVentilationWindow } from './smogLogic';
 import {
   normalizeAiActionCards,
   sanitizePlainText,
@@ -58,7 +55,8 @@ function makeMockAiCardsJson() {
       id: 'indoor_hack',
       categoryLabel: 'Indoor Air Quality Hack',
       title: 'HEPA Clean Room + Balanced Exhaust',
-      instruction: 'Run HEPA purifier on high in living zone. Crack kitchen window 2 cm during gas cooking.',
+      instruction:
+        'Run HEPA purifier on high in living zone. Crack kitchen window 2 cm during gas cooking.',
       familyHealthImpact: {
         pm25ReductionPercent: 45,
         passiveCigarettesAvoided: 2.0,
@@ -80,7 +78,8 @@ function makeMockAiCardsJson() {
       id: 'sustainable_swap',
       categoryLabel: 'Sustainable Alternative',
       title: 'Pre-Boil Water in Electric Kettle',
-      instruction: 'Pre-heat water electrically before gas cooking. Keep tight lids on simmering pots.',
+      instruction:
+        'Pre-heat water electrically before gas cooking. Keep tight lids on simmering pots.',
       familyHealthImpact: {
         pm25ReductionPercent: 22,
         passiveCigarettesAvoided: 1.0,
@@ -101,10 +100,7 @@ function makeMockAiCardsJson() {
   ]);
 }
 
-async function withTestServer(
-  options: CreateAppOptions,
-  fn: (baseUrl: string) => Promise<void>
-) {
+async function withTestServer(options: CreateAppOptions, fn: (baseUrl: string) => Promise<void>) {
   const app = createApp(options);
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -132,14 +128,8 @@ test('sanitizePlainText and validateRecommendationRequest block prompt injection
   assert.equal(valid!.city, 'New Delhi');
   assert.equal(valid!.forceRefresh, false);
 
-  assert.equal(
-    validateRecommendationRequest(buildValidRequestBody({ currentPm25: -10 })),
-    null
-  );
-  assert.equal(
-    validateRecommendationRequest(buildValidRequestBody({ currentPm25: 5000 })),
-    null
-  );
+  assert.equal(validateRecommendationRequest(buildValidRequestBody({ currentPm25: -10 })), null);
+  assert.equal(validateRecommendationRequest(buildValidRequestBody({ currentPm25: 5000 })), null);
   assert.equal(
     validateRecommendationRequest(
       buildValidRequestBody({

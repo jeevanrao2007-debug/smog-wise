@@ -43,9 +43,7 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-export function buildRecommendationCacheKey(
-  validated: ValidatedRecommendationRequest
-): string {
+export function buildRecommendationCacheKey(validated: ValidatedRecommendationRequest): string {
   return JSON.stringify({
     city: validated.city,
     currentPm25: validated.currentPm25,
@@ -63,8 +61,10 @@ export function buildRecommendationCacheKey(
 export function buildGeminiPrompt(validated: ValidatedRecommendationRequest): string {
   const { city, currentPm25, safeWindow, profile, customQuestion } = validated;
   const cookingDesc = profile.cookingFuel === 'gas' ? 'Gas Stove' : 'Induction / Electric';
-  const filtrationDesc = profile.indoorFiltration === 'has_purifier' ? 'Have Air Purifier' : 'No Air Purifier';
-  const vulnerableDesc = profile.vulnerableMembers === 'yes' ? 'Kids or Seniors at Home (Yes)' : 'No Vulnerable Members';
+  const filtrationDesc =
+    profile.indoorFiltration === 'has_purifier' ? 'Have Air Purifier' : 'No Air Purifier';
+  const vulnerableDesc =
+    profile.vulnerableMembers === 'yes' ? 'Kids or Seniors at Home (Yes)' : 'No Vulnerable Members';
   const commuteDesc = profile.commute;
 
   return `Generate 3 tailored, practical daily smog navigation action cards for a family in ${city}.
@@ -131,11 +131,7 @@ const GEMINI_RESPONSE_SCHEMA = {
           passiveCigarettesAvoided: { type: Type.NUMBER },
           summaryText: { type: Type.STRING },
         },
-        required: [
-          'pm25ReductionPercent',
-          'passiveCigarettesAvoided',
-          'summaryText',
-        ],
+        required: ['pm25ReductionPercent', 'passiveCigarettesAvoided', 'summaryText'],
       },
       neighborhoodEmissionImpact: {
         type: Type.OBJECT,
@@ -195,7 +191,7 @@ async function callGeminiModel(
   const tryCall = async (withThinking: boolean) => {
     const config: GenerateContentConfig = {
       systemInstruction:
-        'You are an atmospheric scientist and indoor air quality engineer generating deeply personalized, honest, non-medical family smog routines. You must strictly ground every card in the user\'s specific city name, exact PM2.5 levels, safe ventilation window hours, household toggles, and custom question. Always output valid JSON matching the schema.',
+        "You are an atmospheric scientist and indoor air quality engineer generating deeply personalized, honest, non-medical family smog routines. You must strictly ground every card in the user's specific city name, exact PM2.5 levels, safe ventilation window hours, household toggles, and custom question. Always output valid JSON matching the schema.",
       responseMimeType: 'application/json',
       responseSchema: GEMINI_RESPONSE_SCHEMA,
     };
@@ -233,16 +229,13 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   app.disable('x-powered-by');
 
-  const trustProxy =
-    options.trustProxy ?? process.env.TRUST_PROXY === 'true';
+  const trustProxy = options.trustProxy ?? process.env.TRUST_PROXY === 'true';
   app.set('trust proxy', trustProxy ? 1 : false);
 
   const maxCacheEntries = options.maxCacheEntries ?? DEFAULT_MAX_CACHE_ENTRIES;
   const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
-  const rateLimitWindowMs =
-    options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS;
-  const rateLimitMaxRequests =
-    options.rateLimitMaxRequests ?? DEFAULT_RATE_LIMIT_MAX_REQUESTS;
+  const rateLimitWindowMs = options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS;
+  const rateLimitMaxRequests = options.rateLimitMaxRequests ?? DEFAULT_RATE_LIMIT_MAX_REQUESTS;
   const getNow = options.now ?? (() => Date.now());
 
   const configuredAppUrl = process.env.APP_URL;
@@ -259,17 +252,12 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader(
-      'Permissions-Policy',
-      'geolocation=(self), camera=(), microphone=(), payment=()'
-    );
+    res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=()');
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
 
     const origin = req.headers.origin;
     if (origin) {
-      const hostOrigin = req.headers.host
-        ? `${req.protocol}://${req.headers.host}`
-        : '';
+      const hostOrigin = req.headers.host ? `${req.protocol}://${req.headers.host}` : '';
       if (origin === hostOrigin || allowedOrigins.has(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
@@ -288,35 +276,27 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(express.json({ limit: '64kb' }));
 
   // Sanitized JSON parser & payload-size error handler (prevents leaking stack traces)
-  app.use(
-    (
-      err: unknown,
-      _req: Request,
-      res: Response,
-      next: NextFunction
-    ) => {
-      if (err && typeof err === 'object') {
-        const status =
-          'status' in err && typeof err.status === 'number' ? err.status : 0;
-        const type = 'type' in err && typeof err.type === 'string' ? err.type : '';
-        if (type === 'entity.too.large' || status === 413) {
-          res.status(413).json({
-            error: 'Request payload exceeds the 64kb safety limit.',
-            code: 'PAYLOAD_TOO_LARGE',
-          });
-          return;
-        }
-        if (err instanceof SyntaxError || status === 400) {
-          res.status(400).json({
-            error: 'Malformed JSON body.',
-            code: 'MALFORMED_JSON',
-          });
-          return;
-        }
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (err && typeof err === 'object') {
+      const status = 'status' in err && typeof err.status === 'number' ? err.status : 0;
+      const type = 'type' in err && typeof err.type === 'string' ? err.type : '';
+      if (type === 'entity.too.large' || status === 413) {
+        res.status(413).json({
+          error: 'Request payload exceeds the 64kb safety limit.',
+          code: 'PAYLOAD_TOO_LARGE',
+        });
+        return;
       }
-      next(err);
+      if (err instanceof SyntaxError || status === 400) {
+        res.status(400).json({
+          error: 'Malformed JSON body.',
+          code: 'MALFORMED_JSON',
+        });
+        return;
+      }
     }
-  );
+    next(err);
+  });
 
   const recommendationsCache = new Map<string, CacheEntry>();
   const ipRateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -475,10 +455,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     const clientIp = resolveClientIp(req);
 
     if (!checkRateLimit(clientIp)) {
-      res.setHeader(
-        'Retry-After',
-        String(Math.ceil(rateLimitWindowMs / 1000))
-      );
+      res.setHeader('Retry-After', String(Math.ceil(rateLimitWindowMs / 1000)));
       res.status(429).json({
         error: 'Rate limit exceeded. Please wait before refreshing again.',
         code: 'RATE_LIMITED',
@@ -545,11 +522,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
           },
         });
 
-        const CANDIDATE_MODELS = [
-          'gemini-4-hydrogen',
-          'gemini-3.8-flash',
-          'gemini-3.5-flash-lite',
-        ];
+        const CANDIDATE_MODELS = ['gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 
         let lastChainError: unknown = null;
         for (let i = 0; i < CANDIDATE_MODELS.length; i++) {
@@ -565,7 +538,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
           } catch (modelErr: unknown) {
             lastChainError = modelErr;
             const errMsg = modelErr instanceof Error ? modelErr.message : String(modelErr);
-            console.warn(`[Gemini Chain] ${candidateModel} failed (${errMsg}). Trying next model in chain...`);
+            console.warn(
+              `[Gemini Chain] ${candidateModel} failed (${errMsg}). Trying next model in chain...`
+            );
             if (i < CANDIDATE_MODELS.length - 1) {
               await new Promise((resolve) => setTimeout(resolve, 600));
             }
@@ -655,8 +630,7 @@ async function startServer() {
 
 // Only start HTTP listener when executed as the main entrypoint (not when imported by integration tests)
 const isDirectExecution =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === path.resolve(__filename);
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
 
 if (isDirectExecution) {
   startServer();

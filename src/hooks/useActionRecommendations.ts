@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  APP_LIMITS,
   GEMINI_CANDIDATE_MODELS,
   RECOMMENDATION_DEBOUNCE_MS,
   STORAGE_KEYS,
@@ -12,7 +13,7 @@ import {
 } from '../types';
 import { sanitizePublicCityLabel } from '../utils/smogLogic';
 import { generateClientGeminiRecommendations } from '../utils/geminiClient';
-import { maskSensitiveErrorDetails } from '../utils/apiValidation';
+import { maskSensitiveErrorDetails, sanitizePlainText } from '../utils/apiValidation';
 
 interface UseActionRecommendationsParams {
   cityName: string;
@@ -41,9 +42,7 @@ export function useActionRecommendations({
   const [isLoadingCards, setIsLoadingCards] = useState(false);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [recommendationsError, setRecommendationsError] = useState<string | null>(
-    null
-  );
+  const [recommendationsError, setRecommendationsError] = useState<string | null>(null);
   const [customQuestion, setCustomQuestion] = useState<string>('');
   const customQuestionRef = useRef(customQuestion);
 
@@ -63,8 +62,8 @@ export function useActionRecommendations({
       } = {}
     ) => {
       const { showSkeleton = false, forceRefresh = false, customQ } = options;
-      const q =
-        typeof customQ === 'string' ? customQ : customQuestionRef.current;
+      const rawQ = typeof customQ === 'string' ? customQ : customQuestionRef.current;
+      const q = sanitizePlainText(rawQ, APP_LIMITS.MAX_CUSTOM_QUESTION_LENGTH);
       const safeCityLabel = sanitizePublicCityLabel(cityName);
 
       const sessionCacheKey = `${STORAGE_KEYS.GEMINI_SESSION_CACHE_PREFIX}:${safeCityLabel.toLowerCase()}:${currentHour24}:${profile.cookingFuel}:${profile.commute}:${profile.indoorFiltration}:${profile.vulnerableMembers}:${(q || '').trim().toLowerCase()}`;
@@ -142,19 +141,13 @@ export function useActionRecommendations({
           });
         }
 
-        if (
-          cardsResult &&
-          Array.isArray(cardsResult.cards) &&
-          cardsResult.cards.length === 3
-        ) {
+        if (cardsResult && Array.isArray(cardsResult.cards) && cardsResult.cards.length === 3) {
           setActionCards(cardsResult.cards);
           setModelUsed(cardsResult.modelUsed || defaultModelName);
           const genAt = cardsResult.generatedAt || new Date().toISOString();
           setGeneratedAt(genAt);
           setRecommendationsError(null);
-          onAnnouncement(
-            `Generated 3 personalized smog action cards for ${safeCityLabel}.`
-          );
+          onAnnouncement(`Generated 3 personalized smog action cards for ${safeCityLabel}.`);
 
           try {
             sessionStorage.setItem(
@@ -192,15 +185,7 @@ export function useActionRecommendations({
         }
       }
     },
-    [
-      cityName,
-      currentHour24,
-      currentPm25,
-      safeWindow,
-      profile,
-      defaultModelName,
-      onAnnouncement,
-    ]
+    [cityName, currentHour24, currentPm25, safeWindow, profile, defaultModelName, onAnnouncement]
   );
 
   useEffect(() => {

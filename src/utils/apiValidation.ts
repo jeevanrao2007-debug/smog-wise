@@ -17,15 +17,10 @@ import {
 import { buildTailoredActionCards, sanitizePublicCityLabel } from './smogLogic';
 
 const VALID_COOKING: CookingFuel[] = ['gas', 'induction'];
-const VALID_COMMUTE: CommuteMode[] = [
-  'car',
-  'two_wheeler',
-  'public_transit',
-  'wfh',
-];
+const VALID_COMMUTE: CommuteMode[] = ['car', 'two_wheeler', 'public_transit', 'wfh'];
 const VALID_FILTRATION: IndoorFiltration[] = ['has_purifier', 'no_purifier'];
 const VALID_VULNERABLE: VulnerableMembers[] = ['yes', 'no'];
-const ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
+const ID_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 /**
  * Strips control characters, newlines, zero-width spaces, bidi overrides,
@@ -34,16 +29,19 @@ const ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
  */
 export function sanitizePlainText(input: unknown, maxLength = 100): string {
   if (typeof input !== 'string') return '';
-  return input
-    // Strip zero-width & invisible format characters (CVE-2021-42574 trojan source / prompt hiding)
-    .replace(/[\u200B-\u200D\uFEFF\u00AD\u202A-\u202E\u2066-\u2069]/g, '')
-    // Strip control characters, backticks, brackets, braces, angle brackets, backslashes, quotes
-    .replace(/[\u0000-\u001F\u007F`{}[\]<>\\]/g, ' ')
-    // Defang common prompt injection delimiters / special LLM tokens
-    .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLength);
+  return (
+    input
+      // Strip zero-width & invisible format characters (CVE-2021-42574 trojan source / prompt hiding)
+      .replace(/[\u200B-\u200D\uFEFF\u00AD\u202A-\u202E\u2066-\u2069]/g, '')
+      // Strip control characters, backticks, brackets, braces, angle brackets, backslashes, quotes
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001F\u007F`{}[\]<>\\]/g, ' ')
+      // Defang common prompt injection delimiters / special LLM tokens
+      .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLength)
+  );
 }
 
 /**
@@ -54,16 +52,18 @@ export function maskSensitiveErrorDetails(error: unknown): string {
   if (!error) return 'An unexpected error occurred.';
   const raw = error instanceof Error ? error.message : String(error);
 
-  return raw
-    // Mask Google Cloud / Gemini API keys
-    .replace(new RegExp(['AI', 'za[0-9A-Za-z_-]{35}'].join(''), 'g'), '[REDACTED_API_KEY]')
-    .replace(new RegExp(['AI', 'zaSy[0-9A-Za-z_-]{33}'].join(''), 'g'), '[REDACTED_API_KEY]')
-    // Mask key= query parameter values
-    .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED_API_KEY]')
-    // Mask Authorization Bearer tokens
-    .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1[REDACTED_TOKEN]')
-    // Mask generic API secret headers
-    .replace(/(api[_-]?key["':\s]+)[A-Za-z0-9_-]{16,}/gi, '$1[REDACTED_KEY]');
+  return (
+    raw
+      // Mask Google Cloud / Gemini API keys
+      .replace(new RegExp(['AI', 'za[0-9A-Za-z_-]{35}'].join(''), 'g'), '[REDACTED_API_KEY]')
+      .replace(new RegExp(['AI', 'zaSy[0-9A-Za-z_-]{33}'].join(''), 'g'), '[REDACTED_API_KEY]')
+      // Mask key= query parameter values
+      .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED_API_KEY]')
+      // Mask Authorization Bearer tokens
+      .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1[REDACTED_TOKEN]')
+      // Mask generic API secret headers
+      .replace(/(api[_-]?key["':\s]+)[A-Za-z0-9_-]{16,}/gi, '$1[REDACTED_KEY]')
+  );
 }
 
 export interface ValidatedRecommendationRequest {
@@ -104,12 +104,8 @@ export function validateRecommendationRequest(
   if (
     !VALID_COOKING.includes(rawProfile.cookingFuel as CookingFuel) ||
     !VALID_COMMUTE.includes(rawProfile.commute as CommuteMode) ||
-    !VALID_FILTRATION.includes(
-      rawProfile.indoorFiltration as IndoorFiltration
-    ) ||
-    !VALID_VULNERABLE.includes(
-      rawProfile.vulnerableMembers as VulnerableMembers
-    )
+    !VALID_FILTRATION.includes(rawProfile.indoorFiltration as IndoorFiltration) ||
+    !VALID_VULNERABLE.includes(rawProfile.vulnerableMembers as VulnerableMembers)
   ) {
     return null;
   }
@@ -150,15 +146,11 @@ export function validateRecommendationRequest(
 
   const safeWindow: SafeVentilationWindow = {
     startHour:
-      typeof rawWin.startHour === 'number' &&
-      rawWin.startHour >= 0 &&
-      rawWin.startHour <= 23
+      typeof rawWin.startHour === 'number' && rawWin.startHour >= 0 && rawWin.startHour <= 23
         ? Math.trunc(rawWin.startHour)
         : 14,
     endHour:
-      typeof rawWin.endHour === 'number' &&
-      rawWin.endHour >= 1 &&
-      rawWin.endHour <= 24
+      typeof rawWin.endHour === 'number' && rawWin.endHour >= 1 && rawWin.endHour <= 24
         ? Math.trunc(rawWin.endHour)
         : 16,
     windowLabel,
@@ -168,8 +160,7 @@ export function validateRecommendationRequest(
     worstHourLabel,
     worstPm25: Math.round(rawWin.worstPm25),
     worstWindSpeedKmh:
-      typeof rawWin.worstWindSpeedKmh === 'number' &&
-      Number.isFinite(rawWin.worstWindSpeedKmh)
+      typeof rawWin.worstWindSpeedKmh === 'number' && Number.isFinite(rawWin.worstWindSpeedKmh)
         ? Math.round(rawWin.worstWindSpeedKmh * 10) / 10
         : 3.0,
     pm25ReductionPctVsPeak:
@@ -248,14 +239,11 @@ export function normalizeAiActionCards(
     }
 
     const title = sanitizePlainText(candidate.title, 110) || fallback.title;
-    const instruction =
-      sanitizePlainText(candidate.instruction, 420) || fallback.instruction;
-    const tickerSummary =
-      sanitizePlainText(candidate.tickerSummary, 140) || fallback.tickerSummary;
+    const instruction = sanitizePlainText(candidate.instruction, 420) || fallback.instruction;
+    const tickerSummary = sanitizePlainText(candidate.tickerSummary, 140) || fallback.tickerSummary;
 
     const rawHealth =
-      candidate.familyHealthImpact &&
-      typeof candidate.familyHealthImpact === 'object'
+      candidate.familyHealthImpact && typeof candidate.familyHealthImpact === 'object'
         ? (candidate.familyHealthImpact as Record<string, unknown>)
         : {};
     const rawEmission =
@@ -264,8 +252,7 @@ export function normalizeAiActionCards(
         ? (candidate.neighborhoodEmissionImpact as Record<string, unknown>)
         : {};
     const rawMethod =
-      candidate.impactMethodology &&
-      typeof candidate.impactMethodology === 'object'
+      candidate.impactMethodology && typeof candidate.impactMethodology === 'object'
         ? (candidate.impactMethodology as Record<string, unknown>)
         : {};
 
@@ -284,8 +271,8 @@ export function normalizeAiActionCards(
         spec.id === 'indoor_hack'
           ? 'indoor PM2.5 exposure'
           : spec.id === 'sustainable_swap'
-          ? 'kitchen & street PM2.5'
-          : 'daily PM2.5 exposure',
+            ? 'kitchen & street PM2.5'
+            : 'daily PM2.5 exposure',
     });
 
     const candidateCo2 =
@@ -309,11 +296,9 @@ export function normalizeAiActionCards(
     });
 
     const rationale =
-      sanitizePlainText(rawMethod.rationale, 240) ||
-      fallback.impactMethodology.rationale;
+      sanitizePlainText(rawMethod.rationale, 240) || fallback.impactMethodology.rationale;
     const assumptions =
-      sanitizePlainText(rawMethod.assumptions, 280) ||
-      fallback.impactMethodology.assumptions;
+      sanitizePlainText(rawMethod.assumptions, 280) || fallback.impactMethodology.assumptions;
     const targetPollutants = Array.isArray(rawMethod.targetPollutants)
       ? rawMethod.targetPollutants
           .map((p) => sanitizePlainText(p, 24))

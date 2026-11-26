@@ -32,9 +32,7 @@ export const LiveWeatherStrip: React.FC<LiveWeatherStripProps> = ({
         role="group"
         aria-label="Quick city presets"
       >
-        <span className="text-xs font-medium text-slate-600 mr-1">
-          Quick Air Sheds:
-        </span>
+        <span className="text-xs font-medium text-slate-600 mr-1">Quick Air Sheds:</span>
         {PRESET_CITIES.map((preset) => {
           const active = preset.slug === city.slug;
           return (
@@ -55,10 +53,7 @@ export const LiveWeatherStrip: React.FC<LiveWeatherStripProps> = ({
         })}
       </div>
 
-      <div
-        className="flex flex-wrap items-center gap-4 text-xs text-slate-700"
-        aria-live="polite"
-      >
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700" aria-live="polite">
         <span>
           Current PM2.5:{' '}
           <strong
@@ -66,8 +61,8 @@ export const LiveWeatherStrip: React.FC<LiveWeatherStripProps> = ({
               currentPm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN
                 ? 'text-rose-700'
                 : currentPm25 >= 55
-                ? 'text-amber-800'
-                : 'text-emerald-800'
+                  ? 'text-amber-800'
+                  : 'text-emerald-800'
             }`}
           >
             {isLoadingWeather ? '...' : `${currentPm25} µg/m³`}
@@ -89,10 +84,7 @@ export const LiveWeatherStrip: React.FC<LiveWeatherStripProps> = ({
         </span>
         <span aria-hidden="true">·</span>
         <span className="inline-flex items-center gap-1">
-          <Thermometer
-            className="w-3.5 h-3.5 text-slate-500"
-            aria-hidden="true"
-          />
+          <Thermometer className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
           <strong className="font-mono-tabular font-semibold text-slate-900">
             {isLoadingWeather ? '...' : `${currentTempC}°C`}
           </strong>

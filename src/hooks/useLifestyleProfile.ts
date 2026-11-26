@@ -1,9 +1,5 @@
 import { RefObject, useCallback, useState } from 'react';
-import {
-  APP_LIMITS,
-  DEFAULT_LIFESTYLE_PROFILE,
-  STORAGE_KEYS,
-} from '../constants';
+import { APP_LIMITS, DEFAULT_LIFESTYLE_PROFILE, STORAGE_KEYS } from '../constants';
 import { AuthUserSummary, loadFirebaseClient } from '../firebase';
 import { CityLocation, LifestyleProfile } from '../types';
 import { sanitizePublicCityLabel } from '../utils/smogLogic';
@@ -37,10 +33,7 @@ export function useLifestyleProfile(
       if (saved) {
         const parsed = JSON.parse(saved) as unknown;
         if (Array.isArray(parsed)) {
-          return filterCompletedKeysForDate(
-            parsed as string[],
-            getLocalDateKey()
-          );
+          return filterCompletedKeysForDate(parsed as string[], getLocalDateKey());
         }
       }
     } catch {
@@ -57,9 +50,7 @@ export function useLifestyleProfile(
         setProfile(loadedProfile);
       }
       if (loadedCompletedKeys) {
-        setCompletedKeys(
-          filterCompletedKeysForDate(loadedCompletedKeys, getLocalDateKey())
-        );
+        setCompletedKeys(filterCompletedKeysForDate(loadedCompletedKeys, getLocalDateKey()));
       }
     },
     []
@@ -68,10 +59,7 @@ export function useLifestyleProfile(
   const handleProfileChange = async (updatedProfile: LifestyleProfile) => {
     setProfile(updatedProfile);
     try {
-      localStorage.setItem(
-        STORAGE_KEYS.GUEST_PROFILE,
-        JSON.stringify(updatedProfile)
-      );
+      localStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, JSON.stringify(updatedProfile));
     } catch {
       // ignore
     }
@@ -92,10 +80,10 @@ export function useLifestyleProfile(
           commute: updatedProfile.commute,
           indoorFiltration: updatedProfile.indoorFiltration,
           vulnerableMembers: updatedProfile.vulnerableMembers,
-          completedActionsToday: filterCompletedKeysForDate(
-            completedKeys,
-            getLocalDateKey()
-          ).slice(0, APP_LIMITS.MAX_DAILY_COMPLETED_ACTIONS),
+          completedActionsToday: filterCompletedKeysForDate(completedKeys, getLocalDateKey()).slice(
+            0,
+            APP_LIMITS.MAX_DAILY_COMPLETED_ACTIONS
+          ),
         });
       } catch (err) {
         console.warn(`Firestore profile update failed (${householdPath}):`, err);

@@ -1,9 +1,5 @@
 import { DISPERSION_CONFIG, PM25_THRESHOLDS } from '../constants';
-import {
-  HourlyAirPoint,
-  SafeVentilationWindow,
-  VentilationStatusType,
-} from '../types';
+import { HourlyAirPoint, SafeVentilationWindow, VentilationStatusType } from '../types';
 
 export { DEFAULT_CITY, PRESET_CITIES } from '../constants';
 export { buildTailoredActionCards } from './actionCardBuilder';
@@ -27,8 +23,7 @@ export function toCitySlug(name: string): string {
 export function formatHourLabel(hour24: number, short = false): string {
   const safeHour = Number.isFinite(hour24) ? Math.trunc(hour24) : 0;
   const normalized =
-    ((safeHour % DISPERSION_CONFIG.HOURS_PER_FORECAST) +
-      DISPERSION_CONFIG.HOURS_PER_FORECAST) %
+    ((safeHour % DISPERSION_CONFIG.HOURS_PER_FORECAST) + DISPERSION_CONFIG.HOURS_PER_FORECAST) %
     DISPERSION_CONFIG.HOURS_PER_FORECAST;
   const period = normalized >= 12 ? 'PM' : 'AM';
   const hour12 = normalized % 12 === 0 ? 12 : normalized % 12;
@@ -38,13 +33,8 @@ export function formatHourLabel(hour24: number, short = false): string {
 /**
  * Validates that raw hourly air quality points form a finite, non-negative >= 24h dataset.
  */
-function validateHourlyPointsInput(
-  hourlyPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[]
-): void {
-  if (
-    !Array.isArray(hourlyPoints) ||
-    hourlyPoints.length < DISPERSION_CONFIG.HOURS_PER_FORECAST
-  ) {
+function validateHourlyPointsInput(hourlyPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[]): void {
+  if (!Array.isArray(hourlyPoints) || hourlyPoints.length < DISPERSION_CONFIG.HOURS_PER_FORECAST) {
     throw new Error('Expected 24 hourly air quality points');
   }
 
@@ -71,6 +61,130 @@ function validateHourlyPointsInput(
 }
 
 /**
+ * Slices the next 24 consecutive upcoming hours starting at the normalized local hour (Now)
+ * so past hours are never analyzed or displayed.
+ */
+function sliceUpcoming24Hours(
+  hourlyPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[],
+  normalizedCurrentHour: number
+): Omit<HourlyAirPoint, 'isInSafeWindow'>[] {
+  const hoursCount = DISPERSION_CONFIG.HOURS_PER_FORECAST;
+  const upcomingPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[] = [];
+  for (let i = 0; i < hoursCount; i++) {
+    const sourceIndex = (normalizedCurrentHour + i) % hourlyPoints.length;
+    const pt = hourlyPoints[sourceIndex];
+    const hourOfDay = (normalizedCurrentHour + i) % hoursCount;
+    upcomingPoints.push({
+      ...pt,
+      hourIndex: i,
+      label:
+        i === 0 ? `Now (${formatHourLabel(hourOfDay, false)})` : formatHourLabel(hourOfDay, false),
+      shortLabel: i === 0 ? 'Now' : formatHourLabel(hourOfDay, true),
+    });
+  }
+  return upcomingPoints;
+}
+
+/**
+ * Finds the hourly observation with the highest projected PM2.5 concentration.
+ */
+function findWorstUpcomingPoint(
+  upcomingPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[]
+): Omit<HourlyAirPoint, 'isInSafeWindow'> {
+  return upcomingPoints.reduce(
+    (worst, pt) => (pt.pm25 > worst.pm25 ? pt : worst),
+    upcomingPoints[0]
+  );
+}
+
+/**
+ * Finds the cleanest contiguous 2-hour dispersion window across upcoming hours.
+ */
+function findOptimalVentilationWindow(upcomingPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[]): {
+  bestStartIdx: number;
+  bestAvgPm25: number;
+  bestAvgWind: number;
+} {
+  let bestStartIdx = 0;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestAvgPm25 = 0;
+  let bestAvgWind = 0;
+
+  for (let h = 0; h <= DISPERSION_CONFIG.LAST_WINDOW_START_INDEX; h++) {
+    const avgPm25 = (upcomingPoints[h].pm25 + upcomingPoints[h + 1].pm25) / 2;
+    const avgWind = (upcomingPoints[h].windSpeedKmh + upcomingPoints[h + 1].windSpeedKmh) / 2;
+    const dispersionBonus = Math.min(
+      avgWind * DISPERSION_CONFIG.WIND_BONUS_MULTIPLIER,
+      DISPERSION_CONFIG.MAX_DISPERSION_BONUS
+    );
+    const score = avgPm25 - dispersionBonus;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestStartIdx = h;
+      bestAvgPm25 = Math.round(avgPm25);
+      bestAvgWind = Math.round(avgWind * 10) / 10;
+    }
+  }
+
+  return { bestStartIdx, bestAvgPm25, bestAvgWind };
+}
+
+/**
+ * Classifies the upcoming 24-hour forecast into one of 3 scientific ventilation status tiers.
+ */
+function classifyVentilationTier(params: {
+  maxUpcomingPm25: number;
+  bestAvgPm25: number;
+  bestAvgWind: number;
+  bestStartIdx: number;
+  currentPm25: number;
+  windowLabel: string;
+  worstHourLabel: string;
+}): {
+  statusType: VentilationStatusType;
+  statusHeadline: string;
+  statusSubtext: string;
+} {
+  const {
+    maxUpcomingPm25,
+    bestAvgPm25,
+    bestAvgWind,
+    bestStartIdx,
+    currentPm25,
+    windowLabel,
+    worstHourLabel,
+  } = params;
+
+  if (maxUpcomingPm25 <= PM25_THRESHOLDS.CLEAN_AIR_MAX) {
+    return {
+      statusType: 'open_now',
+      statusHeadline: 'Clean Air — Safe to Ventilate Anytime',
+      statusSubtext: `Ambient PM2.5 stays well below unhealthy levels (maximum ${maxUpcomingPm25} µg/m³ throughout the upcoming 24 hours, meeting WHO clean air guidelines), so natural cross-ventilation is safe day and night. The single cleanest 2-hour peak-dispersion window for deep airing out is ${windowLabel} (projected ${bestAvgPm25} µg/m³ with ${bestAvgWind} km/h dispersion winds).`,
+    };
+  }
+  if (bestAvgPm25 > PM25_THRESHOLDS.SEVERE_SMOG_MIN) {
+    return {
+      statusType: 'keep_sealed',
+      statusHeadline: 'Severe Smog — Keep Windows Sealed',
+      statusSubtext: `Even the cleanest upcoming 2-hour window averages ${bestAvgPm25} µg/m³ (exceeding the 150 µg/m³ safety ceiling). Keep windows sealed, run active indoor air filtration, and seal door gaps. Lowest pollution window is ${windowLabel} if brief air exchange is needed.`,
+    };
+  }
+  if (bestStartIdx === 0 && currentPm25 <= PM25_THRESHOLDS.OPEN_WINDOWS_NOW_MAX) {
+    return {
+      statusType: 'open_now',
+      statusHeadline: 'Open Windows Now',
+      statusSubtext: `Current PM2.5 is ${currentPm25} µg/m³ with ${bestAvgWind} km/h dispersion winds. Cross-ventilate now before upcoming peak hours (${maxUpcomingPm25} µg/m³ at ${worstHourLabel}) trap stagnant pollution.`,
+    };
+  }
+  return {
+    statusType: 'wait_until',
+    statusHeadline: `Best Upcoming Window: ${windowLabel}`,
+    statusSubtext: `Keep windows closed during upcoming peak hours (${maxUpcomingPm25} µg/m³ at ${worstHourLabel}) and ventilate during ${windowLabel} when air dispersion is strongest (averaging ${bestAvgPm25} µg/m³).`,
+  };
+}
+
+/**
  * Calculates the best 2-hour Safe Ventilation Window among the UPCOMING 24 consecutive hours
  * starting from the user's current local hour (Now), so past hours are never analyzed or displayed.
  *
@@ -93,98 +207,31 @@ export function calculateSafeVentilationWindow(
     ? ((Math.trunc(currentHour24) % hoursCount) + hoursCount) % hoursCount
     : DISPERSION_CONFIG.DEFAULT_FALLBACK_HOUR;
 
-  // Slice the next 24 consecutive upcoming hours starting at current local hour (Now)
-  const upcomingPoints: Omit<HourlyAirPoint, 'isInSafeWindow'>[] = [];
-  for (let i = 0; i < hoursCount; i++) {
-    const sourceIndex = (normalizedCurrentHour + i) % hourlyPoints.length;
-    const pt = hourlyPoints[sourceIndex];
-    const hourOfDay = (normalizedCurrentHour + i) % hoursCount;
-    upcomingPoints.push({
-      ...pt,
-      hourIndex: i, // 0 is Now, 1 is Now + 1h, etc.
-      label:
-        i === 0
-          ? `Now (${formatHourLabel(hourOfDay, false)})`
-          : formatHourLabel(hourOfDay, false),
-      shortLabel: i === 0 ? 'Now' : formatHourLabel(hourOfDay, true),
-    });
-  }
-
-  let worstPoint = upcomingPoints[0];
-  for (const pt of upcomingPoints) {
-    if (pt.pm25 > worstPoint.pm25) {
-      worstPoint = pt;
-    }
-  }
-
-  let bestStartIdx = 0;
-  let bestScore = Number.POSITIVE_INFINITY;
-  let bestAvgPm25 = 0;
-  let bestAvgWind = 0;
-
-  for (let h = 0; h <= DISPERSION_CONFIG.LAST_WINDOW_START_INDEX; h++) {
-    const h1 = upcomingPoints[h];
-    const h2 = upcomingPoints[h + 1];
-    const avgPm25 = (h1.pm25 + h2.pm25) / 2;
-    const avgWind = (h1.windSpeedKmh + h2.windSpeedKmh) / 2;
-
-    const dispersionBonus = Math.min(
-      avgWind * DISPERSION_CONFIG.WIND_BONUS_MULTIPLIER,
-      DISPERSION_CONFIG.MAX_DISPERSION_BONUS
-    );
-    const score = avgPm25 - dispersionBonus;
-
-    if (score < bestScore) {
-      bestScore = score;
-      bestStartIdx = h;
-      bestAvgPm25 = Math.round(avgPm25);
-      bestAvgWind = Math.round(avgWind * 10) / 10;
-    }
-  }
+  const upcomingPoints = sliceUpcoming24Hours(hourlyPoints, normalizedCurrentHour);
+  const worstPoint = findWorstUpcomingPoint(upcomingPoints);
+  const { bestStartIdx, bestAvgPm25, bestAvgWind } = findOptimalVentilationWindow(upcomingPoints);
 
   const startHourOfWindow = (normalizedCurrentHour + bestStartIdx) % hoursCount;
-  const endHourOfWindow =
-    (normalizedCurrentHour + bestStartIdx + 2) % hoursCount;
-  const startTimeLabel =
-    bestStartIdx === 0 ? 'Now' : formatHourLabel(startHourOfWindow, false);
-  const endTimeLabel = formatHourLabel(endHourOfWindow, false);
-  const windowLabel = `${startTimeLabel} – ${endTimeLabel}`;
+  const endHourOfWindow = (normalizedCurrentHour + bestStartIdx + 2) % hoursCount;
+  const startTimeLabel = bestStartIdx === 0 ? 'Now' : formatHourLabel(startHourOfWindow, false);
+  const windowLabel = `${startTimeLabel} – ${formatHourLabel(endHourOfWindow, false)}`;
 
   const maxUpcomingPm25 = Math.round(worstPoint.pm25);
   const currentPm25 = Math.round(upcomingPoints[0].pm25);
-
   const pm25ReductionPctVsPeak =
     worstPoint.pm25 > 0
-      ? Math.max(
-          0,
-          Math.round(((worstPoint.pm25 - bestAvgPm25) / worstPoint.pm25) * 100)
-        )
+      ? Math.max(0, Math.round(((worstPoint.pm25 - bestAvgPm25) / worstPoint.pm25) * 100))
       : 0;
 
-  let statusType: VentilationStatusType;
-  let statusHeadline: string;
-  let statusSubtext: string;
-
-  if (maxUpcomingPm25 <= PM25_THRESHOLDS.CLEAN_AIR_MAX) {
-    statusType = 'open_now';
-    statusHeadline = 'Clean Air — Safe to Ventilate Anytime';
-    statusSubtext = `Ambient PM2.5 stays well below unhealthy levels (maximum ${maxUpcomingPm25} µg/m³ throughout the upcoming 24 hours, meeting WHO clean air guidelines), so natural cross-ventilation is safe day and night. The single cleanest 2-hour peak-dispersion window for deep airing out is ${windowLabel} (projected ${bestAvgPm25} µg/m³ with ${bestAvgWind} km/h dispersion winds).`;
-  } else if (bestAvgPm25 > PM25_THRESHOLDS.SEVERE_SMOG_MIN) {
-    statusType = 'keep_sealed';
-    statusHeadline = 'Severe Smog — Keep Windows Sealed';
-    statusSubtext = `Even the cleanest upcoming 2-hour window averages ${bestAvgPm25} µg/m³ (exceeding the 150 µg/m³ safety ceiling). Keep windows sealed, run active indoor air filtration, and seal door gaps. Lowest pollution window is ${windowLabel} if brief air exchange is needed.`;
-  } else if (
-    bestStartIdx === 0 &&
-    currentPm25 <= PM25_THRESHOLDS.OPEN_WINDOWS_NOW_MAX
-  ) {
-    statusType = 'open_now';
-    statusHeadline = 'Open Windows Now';
-    statusSubtext = `Current PM2.5 is ${currentPm25} µg/m³ with ${bestAvgWind} km/h dispersion winds. Cross-ventilate now before upcoming peak hours (${maxUpcomingPm25} µg/m³ at ${worstPoint.label}) trap stagnant pollution.`;
-  } else {
-    statusType = 'wait_until';
-    statusHeadline = `Best Upcoming Window: ${windowLabel}`;
-    statusSubtext = `Keep windows closed during upcoming peak hours (${maxUpcomingPm25} µg/m³ at ${worstPoint.label}) and ventilate during ${windowLabel} when air dispersion is strongest (averaging ${bestAvgPm25} µg/m³).`;
-  }
+  const { statusType, statusHeadline, statusSubtext } = classifyVentilationTier({
+    maxUpcomingPm25,
+    bestAvgPm25,
+    bestAvgWind,
+    bestStartIdx,
+    currentPm25,
+    windowLabel,
+    worstHourLabel: worstPoint.label,
+  });
 
   const annotatedPoints: HourlyAirPoint[] = upcomingPoints.map((pt, idx) => ({
     ...pt,
@@ -220,25 +267,24 @@ export function buildSimulatedOrFallbackHourlyPoints(
   baseRawPoints?: Omit<HourlyAirPoint, 'isInSafeWindow'>[]
 ): Omit<HourlyAirPoint, 'isInSafeWindow'>[] {
   const severeCurvePm25 = [
-    310, 305, 298, 295, 308, 330, 355, 380, 392, 360, 315, 265, 225, 198, 184,
-    188, 215, 260, 310, 340, 365, 372, 350, 328,
+    310, 305, 298, 295, 308, 330, 355, 380, 392, 360, 315, 265, 225, 198, 184, 188, 215, 260, 310,
+    340, 365, 372, 350, 328,
   ];
   const severeWindKmh = [
-    3.2, 2.8, 2.5, 2.4, 2.6, 3.0, 3.4, 3.8, 4.5, 6.2, 8.4, 10.2, 11.8, 13.4,
-    14.2, 13.6, 10.5, 7.2, 5.0, 4.1, 3.6, 3.4, 3.3, 3.1,
+    3.2, 2.8, 2.5, 2.4, 2.6, 3.0, 3.4, 3.8, 4.5, 6.2, 8.4, 10.2, 11.8, 13.4, 14.2, 13.6, 10.5, 7.2,
+    5.0, 4.1, 3.6, 3.4, 3.3, 3.1,
   ];
   const severeTempC = [
-    9, 8, 8, 7, 7, 8, 9, 11, 13, 16, 18, 20, 21, 22, 22, 21, 19, 16, 14, 13,
-    12, 11, 10, 9,
+    9, 8, 8, 7, 7, 8, 9, 11, 13, 16, 18, 20, 21, 22, 22, 21, 19, 16, 14, 13, 12, 11, 10, 9,
   ];
 
   const moderateFallbackPm25 = [
-    118, 112, 106, 102, 108, 124, 142, 156, 148, 122, 96, 74, 58, 48, 44, 46,
-    62, 88, 110, 128, 138, 134, 126, 120,
+    118, 112, 106, 102, 108, 124, 142, 156, 148, 122, 96, 74, 58, 48, 44, 46, 62, 88, 110, 128, 138,
+    134, 126, 120,
   ];
   const moderateWindKmh = [
-    5.4, 5.1, 4.8, 4.6, 5.0, 5.8, 6.5, 7.8, 9.5, 12.0, 14.8, 17.2, 19.4, 21.0,
-    21.8, 20.5, 16.4, 12.2, 9.0, 7.6, 6.8, 6.2, 5.9, 5.6,
+    5.4, 5.1, 4.8, 4.6, 5.0, 5.8, 6.5, 7.8, 9.5, 12.0, 14.8, 17.2, 19.4, 21.0, 21.8, 20.5, 16.4,
+    12.2, 9.0, 7.6, 6.8, 6.2, 5.9, 5.6,
   ];
 
   return Array.from({ length: DISPERSION_CONFIG.HOURS_PER_FORECAST }, (_, hour) => {
@@ -294,20 +340,12 @@ export function validateHouseholdPayload(payload: {
   vulnerableMembers: string;
   completedActionsToday: string[];
 }): boolean {
-  const idRegex = /^[a-zA-Z0-9_\-]+$/;
-  if (
-    !payload.userId ||
-    payload.userId.length > 128 ||
-    !idRegex.test(payload.userId)
-  ) {
+  const idRegex = /^[a-zA-Z0-9_-]+$/;
+  if (!payload.userId || payload.userId.length > 128 || !idRegex.test(payload.userId)) {
     return false;
   }
   if (!payload.city || payload.city.length > 100) return false;
-  if (
-    !payload.citySlug ||
-    payload.citySlug.length > 128 ||
-    !idRegex.test(payload.citySlug)
-  ) {
+  if (!payload.citySlug || payload.citySlug.length > 128 || !idRegex.test(payload.citySlug)) {
     return false;
   }
   if (
@@ -329,27 +367,16 @@ export function validateHouseholdPayload(payload: {
   if (payload.cookingFuel !== 'gas' && payload.cookingFuel !== 'induction') {
     return false;
   }
-  if (
-    !['car', 'two_wheeler', 'public_transit', 'wfh'].includes(payload.commute)
-  ) {
+  if (!['car', 'two_wheeler', 'public_transit', 'wfh'].includes(payload.commute)) {
     return false;
   }
-  if (
-    payload.indoorFiltration !== 'has_purifier' &&
-    payload.indoorFiltration !== 'no_purifier'
-  ) {
+  if (payload.indoorFiltration !== 'has_purifier' && payload.indoorFiltration !== 'no_purifier') {
     return false;
   }
-  if (
-    payload.vulnerableMembers !== 'yes' &&
-    payload.vulnerableMembers !== 'no'
-  ) {
+  if (payload.vulnerableMembers !== 'yes' && payload.vulnerableMembers !== 'no') {
     return false;
   }
-  if (
-    !Array.isArray(payload.completedActionsToday) ||
-    payload.completedActionsToday.length > 10
-  ) {
+  if (!Array.isArray(payload.completedActionsToday) || payload.completedActionsToday.length > 10) {
     return false;
   }
   for (const item of payload.completedActionsToday) {
@@ -366,11 +393,7 @@ export function validateHouseholdPayload(payload: {
  */
 export function sanitizePublicCityLabel(rawCityName: string): string {
   const trimmed = (rawCityName || '').trim();
-  if (
-    !trimmed ||
-    /\bGPS\b/i.test(trimmed) ||
-    /-?\d{1,3}\.\d+\s*°/.test(trimmed)
-  ) {
+  if (!trimmed || /\bGPS\b/i.test(trimmed) || /-?\d{1,3}\.\d+\s*°/.test(trimmed)) {
     return 'Local Urban Air Shed';
   }
   return trimmed.slice(0, 100);
@@ -380,18 +403,12 @@ export function sanitizePublicCityLabel(rawCityName: string): string {
  * Formats an anonymized neighborhood ticker line without duplicating the city name
  * and without leaking GPS coordinates or household PII.
  */
-export function formatTickerActionLine(
-  cityName: string,
-  rawTickerSummary: string
-): string {
+export function formatTickerActionLine(cityName: string, rawTickerSummary: string): string {
   const safeCity = sanitizePublicCityLabel(cityName);
   const escapedCity = safeCity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const cleanedVerb = rawTickerSummary
     .replace(/-?\d{1,3}\.\d+\s*°\s*[NSEW]?/gi, '')
-    .replace(
-      new RegExp(`^A (family|household|commuter) in ${escapedCity}\\s+`, 'i'),
-      ''
-    )
+    .replace(new RegExp(`^A (family|household|commuter) in ${escapedCity}\\s+`, 'i'), '')
     .replace(new RegExp(`\\s+in ${escapedCity}[.!]*$`, 'i'), '')
     .replace(/\s+/g, ' ')
     .trim();

@@ -11,9 +11,7 @@ interface CitySearchComboboxProps {
   onSelectCity: (city: CityLocation) => void;
 }
 
-export const CitySearchCombobox: React.FC<CitySearchComboboxProps> = ({
-  onSelectCity,
-}) => {
+export const CitySearchCombobox: React.FC<CitySearchComboboxProps> = ({ onSelectCity }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -154,14 +152,10 @@ export const CitySearchCombobox: React.FC<CitySearchComboboxProps> = ({
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveOptionIndex((prev) =>
-        prev < searchResults.length - 1 ? prev + 1 : 0
-      );
+      setActiveOptionIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveOptionIndex((prev) =>
-        prev > 0 ? prev - 1 : searchResults.length - 1
-      );
+      setActiveOptionIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
     } else if (e.key === 'Enter' && activeOptionIndex >= 0) {
       e.preventDefault();
       const chosen = searchResults[activeOptionIndex];
@@ -218,6 +212,7 @@ export const CitySearchCombobox: React.FC<CitySearchComboboxProps> = ({
           onKeyDown={handleSearchKeyDown}
           placeholder="Search any city (e.g. Lahore)..."
           aria-label="Search city"
+          maxLength={60}
           className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-colors"
         />
       </form>
@@ -252,9 +247,7 @@ export const CitySearchCombobox: React.FC<CitySearchComboboxProps> = ({
                 >
                   <span className="font-medium truncate">{item.name}</span>
                   {item.country && (
-                    <span className="text-xs text-slate-600 truncate ml-2">
-                      {item.country}
-                    </span>
+                    <span className="text-xs text-slate-600 truncate ml-2">{item.country}</span>
                   )}
                 </button>
               );

@@ -63,10 +63,7 @@ test('validateCommunityImpactPayload enforces single-write increment caps, UID m
     recentActions: ['A household in New Delhi skipped a cold-start car trip • Just now'],
     lastActionBy: 'user_abc123',
   };
-  assert.equal(
-    validateCommunityImpactPayload(validCreate, 'new-delhi', 'user_abc123', null),
-    true
-  );
+  assert.equal(validateCommunityImpactPayload(validCreate, 'new-delhi', 'user_abc123', null), true);
 
   // Rejects synthetic baseline seeded on create (familiesCount > 1)
   assert.equal(
@@ -172,7 +169,11 @@ test('firestore.rules enforces default-deny, owner isolation, verified writes, i
 
   // 2. Household owner isolation & list denial
   assert.ok(rulesText.includes('match /households/{userId}'));
-  assert.ok(rulesText.includes('allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;'));
+  assert.ok(
+    rulesText.includes(
+      'allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;'
+    )
+  );
   assert.ok(rulesText.includes('allow list: if false;'));
 
   // 3. Verified email requirement on writes

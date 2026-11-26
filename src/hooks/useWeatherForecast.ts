@@ -24,19 +24,16 @@ export function useWeatherForecast({ onAnnouncement }: UseWeatherForecastParams)
   const [city, setCity] = useState<CityLocation>(DEFAULT_CITY);
   const [isLocating, setIsLocating] = useState(false);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
-  const [rawHourlyPoints, setRawHourlyPoints] = useState<
-    Omit<HourlyAirPoint, 'isInSafeWindow'>[]
-  >(() => buildSimulatedOrFallbackHourlyPoints(false));
-  const [fetchedWeatherSource, setFetchedWeatherSource] =
-    useState<WeatherDataSource>('live');
+  const [rawHourlyPoints, setRawHourlyPoints] = useState<Omit<HourlyAirPoint, 'isInSafeWindow'>[]>(
+    () => buildSimulatedOrFallbackHourlyPoints(false)
+  );
+  const [fetchedWeatherSource, setFetchedWeatherSource] = useState<WeatherDataSource>('live');
   const [weatherWarning, setWeatherWarning] = useState<string | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
 
   const [currentHour24, setCurrentHour24] = useState<number>(() => {
     const nowHour = new Date().getHours();
-    return Number.isFinite(nowHour)
-      ? nowHour
-      : DISPERSION_CONFIG.DEFAULT_FALLBACK_HOUR;
+    return Number.isFinite(nowHour) ? nowHour : DISPERSION_CONFIG.DEFAULT_FALLBACK_HOUR;
   });
 
   useEffect(() => {
@@ -70,12 +67,9 @@ export function useWeatherForecast({ onAnnouncement }: UseWeatherForecastParams)
 
       setIsLoadingWeather(true);
       try {
-        const result = await fetchOpenMeteoForecast(
-          targetCity,
-          controller.signal,
-          fetch,
-          { forceRefresh }
-        );
+        const result = await fetchOpenMeteoForecast(targetCity, controller.signal, fetch, {
+          forceRefresh,
+        });
         if (weatherAbortRef.current !== controller) return;
         setRawHourlyPoints(result.points);
         setFetchedWeatherSource(result.source);
@@ -100,8 +94,14 @@ export function useWeatherForecast({ onAnnouncement }: UseWeatherForecastParams)
   );
 
   useEffect(() => {
-    fetchCityForecast(city);
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        void fetchCityForecast(city);
+      }
+    });
     return () => {
+      active = false;
       weatherAbortRef.current?.abort();
     };
   }, [city, fetchCityForecast]);

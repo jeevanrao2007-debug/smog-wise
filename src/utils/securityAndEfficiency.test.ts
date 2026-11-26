@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  maskSensitiveErrorDetails,
-  sanitizePlainText,
-} from './apiValidation';
+import { maskSensitiveErrorDetails, sanitizePlainText } from './apiValidation';
 import {
   clearWeatherCache,
   fetchOpenMeteoForecast,
@@ -39,7 +36,9 @@ test('Security: sanitizePlainText strips invisible zero-width unicode and prompt
 
 test('Security: maskSensitiveErrorDetails scrubs Google Cloud API keys and Bearer tokens', () => {
   const fakeApiKey = ['AI', 'zaSyD9876543210AbCdEfGhIjKlMnOpQrStU'].join('');
-  const rawError = new Error(`Request failed with status 400: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=${fakeApiKey}`);
+  const rawError = new Error(
+    `Request failed with status 400: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=${fakeApiKey}`
+  );
 
   const masked = maskSensitiveErrorDetails(rawError);
   assert.equal(masked.includes(fakeApiKey), false);
@@ -66,7 +65,10 @@ test('Efficiency: weatherService caches live forecast and coalesces duplicate in
         status: 200,
         json: async () => ({
           hourly: {
-            time: Array.from({ length: 24 }, (_, i) => `2026-11-24T${String(i).padStart(2, '0')}:00`),
+            time: Array.from(
+              { length: 24 },
+              (_, i) => `2026-11-24T${String(i).padStart(2, '0')}:00`
+            ),
             pm2_5: Array.from({ length: 24 }, () => 180),
             pm10: Array.from({ length: 24 }, () => 240),
             us_aqi: Array.from({ length: 24 }, () => 230),
@@ -89,14 +91,18 @@ test('Efficiency: weatherService caches live forecast and coalesces duplicate in
   const nowBase = 1_700_000_000_000;
 
   // 1. First fetch (cache miss, fires 2 HTTP calls: AQ + WX)
-  const res1 = await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, { now: () => nowBase });
+  const res1 = await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, {
+    now: () => nowBase,
+  });
   assert.equal(res1.source, 'live');
   assert.equal(res1.points.length, 24);
   assert.equal(networkCallCount, 2);
   assert.equal(getWeatherCacheStats().size, 1);
 
   // 2. Second fetch within TTL (cache hit, zero new network calls)
-  const res2 = await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, { now: () => nowBase + 60_000 });
+  const res2 = await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, {
+    now: () => nowBase + 60_000,
+  });
   assert.equal(res2.source, 'live');
   assert.equal(networkCallCount, 2); // Unchanged!
 
@@ -112,10 +118,15 @@ test('Efficiency: weatherService caches live forecast and coalesces duplicate in
   assert.equal(networkCallCount, 2); // Exactly 1 pair of calls for both promises!
 
   // 4. Force refresh bypasses cache
-  await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, { forceRefresh: true, now: () => nowBase });
+  await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, {
+    forceRefresh: true,
+    now: () => nowBase,
+  });
   assert.equal(networkCallCount, 4); // Fired new calls
 
   // 5. Expiry after TTL (10 minutes)
-  await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, { now: () => nowBase + WEATHER_CACHE_TTL_MS + 1000 });
+  await fetchOpenMeteoForecast(TEST_CITY, undefined, mockFetch, {
+    now: () => nowBase + WEATHER_CACHE_TTL_MS + 1000,
+  });
   assert.equal(networkCallCount, 6); // Refetched after expiry
 });

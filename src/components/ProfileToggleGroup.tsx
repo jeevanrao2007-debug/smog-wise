@@ -38,11 +38,7 @@ export function ProfileToggleGroup<T extends string>({
         <Icon aria-hidden="true" className="w-4 h-4 text-emerald-700 shrink-0" />
         <span>{label}</span>
       </div>
-      <div
-        role="group"
-        aria-labelledby={labelId}
-        className={gridClassName}
-      >
+      <div role="group" aria-labelledby={labelId} className={gridClassName}>
         {options.map((opt) => {
           const isSelected = value === opt.value;
           return (

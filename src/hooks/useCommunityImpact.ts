@@ -1,6 +1,6 @@
-import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { APP_LIMITS, STORAGE_KEYS } from '../constants';
-import { AuthUserSummary, loadFirebaseClient } from '../firebase';
+import { AuthUserSummary, FirebaseClientModule, loadFirebaseClient } from '../firebase';
 import {
   ActionCardData,
   CityLocation,
@@ -9,10 +9,7 @@ import {
   LifestyleProfile,
   RecordedCommunityImpact,
 } from '../types';
-import {
-  formatTickerActionLine,
-  sanitizePublicCityLabel,
-} from '../utils/smogLogic';
+import { formatTickerActionLine, sanitizePublicCityLabel } from '../utils/smogLogic';
 import {
   filterCompletedKeysForDate,
   getLocalDateKey,
@@ -28,6 +25,7 @@ interface UseCommunityImpactParams {
   completedKeys: string[];
   setCompletedKeys: Dispatch<SetStateAction<string[]>>;
   onAnnouncement: (message: string) => void;
+  loadClientFn?: () => Promise<FirebaseClientModule>;
 }
 
 /**
@@ -41,10 +39,21 @@ export function useCommunityImpact({
   completedKeys,
   setCompletedKeys,
   onAnnouncement,
+  loadClientFn = loadFirebaseClient,
 }: UseCommunityImpactParams) {
   const [celebratingId, setCelebratingId] = useState<string | null>(null);
-  const [firestoreCommunityDoc, setFirestoreCommunityDoc] =
-    useState<CommunityImpactDoc | null>(null);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (celebrationTimerRef.current) {
+        clearTimeout(celebrationTimerRef.current);
+      }
+    };
+  }, []);
+  const [firestoreCommunityDoc, setFirestoreCommunityDoc] = useState<CommunityImpactDoc | null>(
+    null
+  );
   const [guestCommunityRecords, setGuestCommunityRecords] = useState<
     Record<string, GuestCommunityRecord>
   >(() => {
@@ -59,7 +68,6 @@ export function useCommunityImpact({
 
   useEffect(() => {
     if (!user) {
-      setFirestoreCommunityDoc(null);
       return;
     }
 
@@ -67,7 +75,7 @@ export function useCommunityImpact({
     let unsubscribeSnapshot: (() => void) | null = null;
     const docPath = `community_impact/${city.slug}`;
 
-    loadFirebaseClient()
+    loadClientFn()
       .then((client) => {
         if (isCancelled) return;
         unsubscribeSnapshot = client.subscribeToCommunityImpact(
@@ -79,10 +87,7 @@ export function useCommunityImpact({
           },
           (error) => {
             if (!isCancelled) {
-              console.warn(
-                `Firestore community_impact listener warning (${docPath}):`,
-                error
-              );
+              console.warn(`Firestore community_impact listener warning (${docPath}):`, error);
               setFirestoreCommunityDoc(null);
             }
           }
@@ -98,7 +103,7 @@ export function useCommunityImpact({
       isCancelled = true;
       unsubscribeSnapshot?.();
     };
-  }, [city.slug, user]);
+  }, [city.slug, user, loadClientFn]);
 
   const handleCompleteAction = async (card: ActionCardData) => {
     const todayKey = getLocalDateKey();
@@ -115,15 +120,15 @@ export function useCommunityImpact({
     onAnnouncement(
       `Clean-air action "${card.title}" marked complete. Modelled household and neighborhood impact logged.`
     );
-    setTimeout(() => {
+    if (celebrationTimerRef.current) {
+      clearTimeout(celebrationTimerRef.current);
+    }
+    celebrationTimerRef.current = setTimeout(() => {
       setCelebratingId((prev) => (prev === card.id ? null : prev));
     }, APP_LIMITS.ACTION_CELEBRATION_DURATION_MS);
 
     try {
-      localStorage.setItem(
-        STORAGE_KEYS.GUEST_COMPLETED,
-        JSON.stringify(updatedCompleted)
-      );
+      localStorage.setItem(STORAGE_KEYS.GUEST_COMPLETED, JSON.stringify(updatedCompleted));
     } catch {
       // ignore
     }
@@ -132,7 +137,7 @@ export function useCommunityImpact({
     const newActionLine = formatTickerActionLine(safeCityName, card.tickerSummary);
 
     if (user) {
-      const client = await loadFirebaseClient();
+      const client = await loadClientFn();
 
       const householdPath = `households/${user.uid}`;
       try {
@@ -163,10 +168,7 @@ export function useCommunityImpact({
           actionLine: newActionLine,
         });
       } catch (err) {
-        console.warn(
-          `Firestore community impact transaction failed (${communityPath}):`,
-          err
-        );
+        console.warn(`Firestore community impact transaction failed (${communityPath}):`, err);
       }
     } else {
       setGuestCommunityRecords((prev) => {
@@ -186,15 +188,10 @@ export function useCommunityImpact({
           dateKey: todayKey,
           familiesCount: base.familiesCount + 1,
           co2AvoidedKg: Number(
-            (
-              base.co2AvoidedKg + card.neighborhoodEmissionImpact.co2AvoidedKg
-            ).toFixed(2)
+            (base.co2AvoidedKg + card.neighborhoodEmissionImpact.co2AvoidedKg).toFixed(2)
           ),
           noxAvoidedGrams: Number(
-            (
-              base.noxAvoidedGrams +
-              card.neighborhoodEmissionImpact.noxAvoidedGrams
-            ).toFixed(2)
+            (base.noxAvoidedGrams + card.neighborhoodEmissionImpact.noxAvoidedGrams).toFixed(2)
           ),
           recentActions: [newActionLine, ...base.recentActions].slice(
             0,
@@ -203,10 +200,7 @@ export function useCommunityImpact({
         };
         const nextMap = { ...prev, [city.slug]: updated };
         try {
-          localStorage.setItem(
-            STORAGE_KEYS.GUEST_COMMUNITY,
-            JSON.stringify(nextMap)
-          );
+          localStorage.setItem(STORAGE_KEYS.GUEST_COMMUNITY, JSON.stringify(nextMap));
         } catch {
           // ignore
         }
@@ -216,7 +210,7 @@ export function useCommunityImpact({
   };
 
   const recordedCommunityImpact: RecordedCommunityImpact = useMemo(() => {
-    if (firestoreCommunityDoc) {
+    if (user && firestoreCommunityDoc && firestoreCommunityDoc.citySlug === city.slug) {
       return {
         familiesCount: firestoreCommunityDoc.familiesCount,
         co2AvoidedKg: firestoreCommunityDoc.co2AvoidedKg,

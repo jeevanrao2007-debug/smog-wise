@@ -1,12 +1,7 @@
 import React from 'react';
 import { AlertTriangle, LocateFixed } from 'lucide-react';
 import { PM25_THRESHOLDS } from '../constants';
-import {
-  CityLocation,
-  HourlyAirPoint,
-  SafeVentilationWindow,
-  WeatherDataSource,
-} from '../types';
+import { CityLocation, HourlyAirPoint, SafeVentilationWindow, WeatherDataSource } from '../types';
 import { formatCoordinateDisplay } from '../utils/weatherService';
 import { CitySearchCombobox } from './CitySearchCombobox';
 import { HourlyForecastChart } from './HourlyForecastChart';
@@ -53,8 +48,7 @@ export const LiveSmogWindow: React.FC<LiveSmogWindowProps> = ({
   onRetryWeather,
 }) => {
   const isSevere =
-    safeWindow.statusType === 'keep_sealed' ||
-    currentPm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN;
+    safeWindow.statusType === 'keep_sealed' || currentPm25 >= PM25_THRESHOLDS.SEVERE_SMOG_MIN;
 
   return (
     <section
@@ -78,10 +72,7 @@ export const LiveSmogWindow: React.FC<LiveSmogWindowProps> = ({
               disabled={isLocating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
             >
-              <LocateFixed
-                className="w-3.5 h-3.5 text-emerald-700"
-                aria-hidden="true"
-              />
+              <LocateFixed className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
               {isLocating ? 'Detecting Coarse Region...' : 'Auto-Detect Location'}
             </button>
           </div>
@@ -97,15 +88,15 @@ export const LiveSmogWindow: React.FC<LiveSmogWindowProps> = ({
                 isLoadingWeather
                   ? 'text-slate-500'
                   : weatherSource === 'offline_fallback'
-                  ? 'text-amber-800'
-                  : 'text-emerald-800'
+                    ? 'text-amber-800'
+                    : 'text-emerald-800'
               }`}
             >
               {isLoadingWeather
                 ? 'Connecting to live atmospheric sensors...'
                 : weatherSource === 'offline_fallback'
-                ? 'Atmospheric Sensor Network Offline'
-                : 'Live Open-Meteo 24h Telemetry'}
+                  ? 'Atmospheric Sensor Network Offline'
+                  : 'Live Open-Meteo 24h Telemetry'}
             </span>
             {locationNotice && (
               <>
@@ -129,10 +120,7 @@ export const LiveSmogWindow: React.FC<LiveSmogWindowProps> = ({
           className="rounded-xl px-4 py-3 border text-xs leading-relaxed flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-50 border-amber-200 text-amber-950"
         >
           <div className="flex items-start gap-2.5">
-            <AlertTriangle
-              aria-hidden="true"
-              className="w-4 h-4 shrink-0 mt-0.5 text-amber-700"
-            />
+            <AlertTriangle aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
             <span>
               {weatherWarning ||
                 'Live Open-Meteo atmospheric sensors are temporarily unreachable. Retrying or selecting another city will reconnect to live telemetry.'}

@@ -63,8 +63,7 @@ export function ensureFirebaseInitialized(): {
   }
   if (!dbInstance) {
     dbInstance =
-      firebaseConfig.firestoreDatabaseId &&
-      firebaseConfig.firestoreDatabaseId !== '(default)'
+      firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
         ? getFirestore(appInstance, firebaseConfig.firestoreDatabaseId)
         : getFirestore(appInstance);
   }
@@ -103,9 +102,7 @@ export function getCurrentAuthUser(): AuthUserSummary | null {
   return toAuthUserSummary(auth.currentUser);
 }
 
-export function subscribeToAuthState(
-  callback: (user: AuthUserSummary | null) => void
-): () => void {
+export function subscribeToAuthState(callback: (user: AuthUserSummary | null) => void): () => void {
   const { auth } = ensureFirebaseInitialized();
   return onAuthStateChanged(auth, (user) => {
     callback(toAuthUserSummary(user));
@@ -162,12 +159,7 @@ export async function loadOrInitializeHousehold(
       completedActionsToday?: string[];
     } = {};
 
-    if (
-      data.cookingFuel &&
-      data.commute &&
-      data.indoorFiltration &&
-      data.vulnerableMembers
-    ) {
+    if (data.cookingFuel && data.commute && data.indoorFiltration && data.vulnerableMembers) {
       result.profile = {
         cookingFuel: data.cookingFuel,
         commute: data.commute,
@@ -262,21 +254,14 @@ export async function recordCommunityActionTransaction(params: {
 
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(communityRef);
-    const existingDoc = snap.exists()
-      ? (snap.data() as CommunityImpactDoc)
-      : null;
+    const existingDoc = snap.exists() ? (snap.data() as CommunityImpactDoc) : null;
 
     const nextFamilies = existingDoc ? existingDoc.familiesCount + 1 : 1;
-    const nextCo2 = Number(
-      ((existingDoc?.co2AvoidedKg ?? 0) + params.co2AvoidedKg).toFixed(2)
-    );
+    const nextCo2 = Number(((existingDoc?.co2AvoidedKg ?? 0) + params.co2AvoidedKg).toFixed(2));
     const nextNox = Number(
       ((existingDoc?.noxAvoidedGrams ?? 0) + params.noxAvoidedGrams).toFixed(2)
     );
-    const nextRecent = [
-      params.actionLine,
-      ...(existingDoc?.recentActions || []),
-    ].slice(0, 10);
+    const nextRecent = [params.actionLine, ...(existingDoc?.recentActions || [])].slice(0, 10);
 
     const candidatePayload: CommunityImpactDoc = {
       citySlug: slug,
@@ -288,14 +273,7 @@ export async function recordCommunityActionTransaction(params: {
       lastActionBy: params.userId,
     };
 
-    if (
-      !validateCommunityImpactPayload(
-        candidatePayload,
-        slug,
-        params.userId,
-        existingDoc
-      )
-    ) {
+    if (!validateCommunityImpactPayload(candidatePayload, slug, params.userId, existingDoc)) {
       return;
     }
 

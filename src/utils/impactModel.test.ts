@@ -49,10 +49,7 @@ test('calculateHouseholdExposureImpact computes unit-consistent avoided PM2.5 an
     exposureWeight: 5.0,
   });
   assert.equal(extreme.pm25ReductionPercent, IMPACT_CONSTANTS.MAX_PM25_REDUCTION_PCT);
-  assert.equal(
-    extreme.passiveCigarettesAvoided,
-    IMPACT_CONSTANTS.MAX_PASSIVE_CIGARETTES_EQUIV
-  );
+  assert.equal(extreme.passiveCigarettesAvoided, IMPACT_CONSTANTS.MAX_PASSIVE_CIGARETTES_EQUIV);
 
   const negative = calculateHouseholdExposureImpact({
     ambientPm25: -100,

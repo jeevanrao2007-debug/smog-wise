@@ -173,15 +173,29 @@ Where:
 
 ---
 
-## 7. Quality Assurance & Verification
+## 7. Architecture & Problem-Statement Alignment
 
-Run the full TypeScript check and automated test suite:
+Every requirement of the Urban Winter Smog Assistant maps cleanly to focused, unit-tested modules:
+
+| Challenge Requirement | Implemented Modules |
+| :--- | :--- |
+| **Live 24h Safe Ventilation Window (Upcoming Hours)** | `src/hooks/useWeatherForecast.ts`, `src/utils/weatherService.ts`, `src/utils/smogLogic.ts`, `src/constants/airQuality.ts`, `src/components/LiveSmogWindow.tsx`, `src/components/VentilationBanner.tsx`, `src/components/HourlyForecastChart.tsx`, `src/components/HourlyForecastTable.tsx` |
+| **4-Toggle Household Profile + Custom Q&A** | `src/hooks/useLifestyleProfile.ts`, `src/components/LifestyleProfileBar.tsx`, `src/components/ProfileToggleGroup.tsx`, `src/components/CustomQuestionForm.tsx`, `src/constants/storage.ts` |
+| **Live Gemini Action Cards + Failover & Impact Math** | `src/hooks/useActionRecommendations.ts`, `src/utils/geminiClient.ts`, `src/utils/actionCardBuilder.ts`, `src/utils/impactModel.ts`, `src/constants/gemini.ts`, `src/components/ActionCardsSection.tsx`, `src/components/ActionCardItem.tsx` |
+| **Real-Time Firestore Community Counter** | `src/hooks/useSmogAuth.ts`, `src/hooks/useCommunityImpact.ts`, `src/firebase.ts`, `src/firebaseClient.ts`, `src/components/NeighborhoodImpactStrip.tsx`, `firestore.rules` |
+| **Security, Sanitization, Headers & WCAG 2.2 AA** | `src/utils/apiValidation.ts`, `src/components/ErrorBoundary.tsx`, `src/components/AppHeader.tsx`, `src/components/AppFooter.tsx`, `src/components/CitySearchCombobox.tsx`, `src/index.css`, `firebase.json` |
+
+---
+
+## 8. Quality Assurance & Verification
+
+Run the full TypeScript + ESLint check, automated unit/hook/component/accessibility suite, and production build:
 
 ```bash
-# Type-check with zero errors
+# Type-check & run strict ESLint with zero warnings allowed
 npm run lint
 
-# Execute all 31 unit, security, and logic tests
+# Execute all 39 automated unit, failover, security, hook, component & axe-core tests
 npm test
 
 # Build production bundle
@@ -190,7 +204,7 @@ npm run build
 
 ---
 
-## 8. Privacy & Security Highlights
+## 9. Privacy & Security Highlights
 
 - **Privacy-Preserving Geolocation**: Coarse GPS coordinates are rounded to a 0.1° grid (~11 km radius) and resolved to generic urban air-shed labels. Raw GPS coordinates are never stored, sent to AI prompts, or written to Firestore.
 - **No Location State Exposure**: Locations are formatted strictly as `{city}, {country}` across headers, comboboxes, and AI prompts.
@@ -199,6 +213,6 @@ npm run build
 
 ---
 
-## 9. License
+## 10. License
 
 This project is licensed under the Apache-2.0 License.

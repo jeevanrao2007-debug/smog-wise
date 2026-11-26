@@ -28,11 +28,7 @@ const GEMINI_RESPONSE_SCHEMA = {
           passiveCigarettesAvoided: { type: Type.NUMBER },
           summaryText: { type: Type.STRING },
         },
-        required: [
-          'pm25ReductionPercent',
-          'passiveCigarettesAvoided',
-          'summaryText',
-        ],
+        required: ['pm25ReductionPercent', 'passiveCigarettesAvoided', 'summaryText'],
       },
       neighborhoodEmissionImpact: {
         type: Type.OBJECT,
@@ -97,10 +93,10 @@ export function buildGeminiClientPrompt(req: {
     profile.commute === 'car'
       ? 'Car / Private Vehicle'
       : profile.commute === 'two_wheeler'
-      ? 'Motorcycle / Scooter'
-      : profile.commute === 'public_transit'
-      ? 'Metro / Bus'
-      : 'Work From Home (WFH)';
+        ? 'Motorcycle / Scooter'
+        : profile.commute === 'public_transit'
+          ? 'Metro / Bus'
+          : 'Work From Home (WFH)';
   const filtrationDesc =
     profile.indoorFiltration === 'has_purifier'
       ? 'Active HEPA Air Purifier Available'
@@ -159,90 +155,114 @@ Requirements for each card:
 }
 
 /**
+ * Executes a single candidate Gemini model request with automatic fallback
+ * for API versions lacking developer systemInstruction fields.
+ */
+async function invokeCandidateModel(
+  generateFn: (params: {
+    model: string;
+    contents: string;
+    config: GenerateContentConfig;
+  }) => Promise<{ text?: string }>,
+  modelName: string,
+  withThinking: boolean,
+  prompt: string
+): Promise<string> {
+  const tryGenerate = async (includeSystemInstruction: boolean) => {
+    const config: GenerateContentConfig = {
+      responseMimeType: 'application/json',
+      responseSchema: GEMINI_RESPONSE_SCHEMA,
+    };
+    if (includeSystemInstruction) {
+      config.systemInstruction = GEMINI_SYSTEM_INSTRUCTION;
+    }
+    if (withThinking) {
+      config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+    }
+    const contents = includeSystemInstruction
+      ? prompt
+      : `SYSTEM INSTRUCTIONS:\n${GEMINI_SYSTEM_INSTRUCTION}\n\nUSER REQUEST:\n${prompt}`;
+
+    const response = await withTimeout(
+      generateFn({ model: modelName, contents, config }),
+      GEMINI_CLIENT_TIMEOUT_MS
+    );
+    return (response.text ?? '').trim();
+  };
+
+  try {
+    return await tryGenerate(true);
+  } catch (genErr: unknown) {
+    const msg = genErr instanceof Error ? genErr.message : String(genErr);
+    if (msg.includes('Developer instruction') || msg.includes('systemInstruction')) {
+      return await tryGenerate(false);
+    }
+    throw genErr;
+  }
+}
+
+/**
  * Executes the client-side Gemini recommendation generation across the configured
  * 3-model free-tier fallback chain with structured JSON output.
  */
-export async function generateClientGeminiRecommendations(req: {
-  city: string;
-  currentPm25: number;
-  safeWindow: SafeVentilationWindow;
-  profile: LifestyleProfile;
-  customQuestion?: string;
-}): Promise<{ cards: ActionCardData[]; modelUsed: string; generatedAt: string }> {
-  const apiKey =
-    (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
-    ((typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) as string | undefined);
+export async function generateClientGeminiRecommendations(
+  req: {
+    city: string;
+    currentPm25: number;
+    safeWindow: SafeVentilationWindow;
+    profile: LifestyleProfile;
+    customQuestion?: string;
+  },
+  options?: {
+    generateContentFn?: (params: {
+      model: string;
+      contents: string;
+      config: GenerateContentConfig;
+    }) => Promise<{ text?: string }>;
+    backoffMs?: number;
+  }
+): Promise<{ cards: ActionCardData[]; modelUsed: string; generatedAt: string }> {
+  let generateFn = options?.generateContentFn;
 
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
+  if (!generateFn) {
+    const apiKey =
+      (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ||
+      ((typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) as string | undefined);
+
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+      throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: { apiVersion: 'v1beta' },
+    });
+    generateFn = (params) => ai.models.generateContent(params);
   }
 
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: { apiVersion: 'v1beta' },
-  });
   const prompt = buildGeminiClientPrompt(req);
-
+  const backoffMs = options?.backoffMs ?? GEMINI_RETRY_BACKOFF_MS;
   let lastError: Error | null = null;
 
   for (let i = 0; i < GEMINI_CANDIDATE_MODELS.length; i++) {
     const candidate = GEMINI_CANDIDATE_MODELS[i];
     try {
-      const tryGenerate = async (includeSystemInstruction: boolean) => {
-        const config: GenerateContentConfig = {
-          responseMimeType: 'application/json',
-          responseSchema: GEMINI_RESPONSE_SCHEMA,
-        };
+      const text = await invokeCandidateModel(
+        generateFn,
+        candidate.name,
+        candidate.withThinking,
+        prompt
+      );
+      if (!text) throw new Error('Empty response from model');
 
-        if (includeSystemInstruction) {
-          config.systemInstruction = GEMINI_SYSTEM_INSTRUCTION;
-        }
-
-        if (candidate.withThinking) {
-          config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
-        }
-
-        const contents = includeSystemInstruction
-          ? prompt
-          : `SYSTEM INSTRUCTIONS:\n${GEMINI_SYSTEM_INSTRUCTION}\n\nUSER REQUEST:\n${prompt}`;
-
-        return await withTimeout(
-          ai.models.generateContent({
-            model: candidate.name,
-            contents,
-            config,
-          }),
-          GEMINI_CLIENT_TIMEOUT_MS
-        );
-      };
-
-      let response;
-      try {
-        response = await tryGenerate(true);
-      } catch (genErr: unknown) {
-        const msg = genErr instanceof Error ? genErr.message : String(genErr);
-        if (msg.includes('Developer instruction') || msg.includes('systemInstruction')) {
-          // Fallback: embed system instruction directly in prompt content if API version lacks systemInstruction
-          response = await tryGenerate(false);
-        } else {
-          throw genErr;
-        }
-      }
-
-      const text = (response.text ?? '').trim();
-      if (!text) {
-        throw new Error('Empty response from model');
-      }
-
-      const parsed = JSON.parse(text);
+      const parsed: unknown = JSON.parse(text);
       if (!Array.isArray(parsed) || parsed.length !== 3) {
         throw new Error('Invalid JSON structure from Gemini');
       }
 
       const normalized = normalizeAiActionCards(parsed, req as ValidatedRecommendationRequest);
-      if (!normalized) {
-        throw new Error('Failed to normalize action cards');
-      }
+      if (!normalized) throw new Error('Failed to normalize action cards');
+
       return {
         cards: normalized,
         modelUsed: candidate.name,
@@ -252,8 +272,8 @@ export async function generateClientGeminiRecommendations(req: {
       const safeMsg = maskSensitiveErrorDetails(err);
       lastError = new Error(safeMsg);
       console.warn(`[Gemini Chain] ${candidate.name} failed (${safeMsg}). Trying next model...`);
-      if (i < GEMINI_CANDIDATE_MODELS.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_BACKOFF_MS));
+      if (i < GEMINI_CANDIDATE_MODELS.length - 1 && backoffMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
     }
   }

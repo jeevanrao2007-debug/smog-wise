@@ -35,9 +35,7 @@ export type ActionCardId = 'routine' | 'indoor_hack' | 'sustainable_swap';
 export interface ActionCardData {
   id: ActionCardId;
   categoryLabel:
-    | 'Low-Emission Daily Routine'
-    | 'Indoor Air Quality Hack'
-    | 'Sustainable Alternative';
+    'Low-Emission Daily Routine' | 'Indoor Air Quality Hack' | 'Sustainable Alternative';
   title: string;
   instruction: string;
   familyHealthImpact: {

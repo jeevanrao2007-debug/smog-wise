@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  CheckCircle2,
-  HeartPulse,
-  Info,
-  Leaf,
-  Sparkles,
-} from 'lucide-react';
+import { CheckCircle2, HeartPulse, Info, Leaf, Sparkles } from 'lucide-react';
 import { ActionCardData } from '../types';
 
 interface ActionCardItemProps {
@@ -33,9 +27,7 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
     <article
       data-testid={`action-card-${card.id}`}
       className={`bg-white border rounded-2xl p-6 flex flex-col justify-between transition-colors ${
-        isCompleted
-          ? 'border-emerald-300 bg-emerald-50/20'
-          : 'border-slate-200'
+        isCompleted ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200'
       }`}
     >
       <div className="space-y-4">
@@ -48,35 +40,22 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
           </span>
         </div>
 
-        <h3 className="text-lg font-bold text-slate-900 leading-snug">
-          {card.title}
-        </h3>
+        <h3 className="text-lg font-bold text-slate-900 leading-snug">{card.title}</h3>
 
-        <p className="text-sm text-slate-700 leading-relaxed">
-          {card.instruction}
-        </p>
+        <p className="text-sm text-slate-700 leading-relaxed">{card.instruction}</p>
       </div>
 
       <div className="mt-6 space-y-4">
         <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-900">
-              Direct Impact Explainer
-            </span>
-            <span className="text-[11px] font-medium text-slate-600">
-              Modelled Estimate
-            </span>
+            <span className="text-xs font-semibold text-slate-900">Direct Impact Explainer</span>
+            <span className="text-[11px] font-medium text-slate-600">Modelled Estimate</span>
           </div>
 
           <div className="flex items-start gap-2.5">
-            <HeartPulse
-              aria-hidden="true"
-              className="w-4 h-4 text-rose-700 shrink-0 mt-0.5"
-            />
+            <HeartPulse aria-hidden="true" className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
             <div className="text-xs leading-relaxed">
-              <span className="font-semibold text-slate-900">
-                Household Exposure Estimate:{' '}
-              </span>
+              <span className="font-semibold text-slate-900">Household Exposure Estimate: </span>
               <span className="text-slate-700 font-mono-tabular">
                 {card.familyHealthImpact.summaryText}
               </span>
@@ -84,14 +63,9 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
           </div>
 
           <div className="flex items-start gap-2.5 pt-2 border-t border-slate-200/70">
-            <Leaf
-              aria-hidden="true"
-              className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"
-            />
+            <Leaf aria-hidden="true" className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
             <div className="text-xs leading-relaxed">
-              <span className="font-semibold text-slate-900">
-                Neighborhood Emission Estimate:{' '}
-              </span>
+              <span className="font-semibold text-slate-900">Neighborhood Emission Estimate: </span>
               <span className="text-slate-700 font-mono-tabular">
                 {card.neighborhoodEmissionImpact.summaryText}
               </span>
@@ -105,18 +79,12 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
             </summary>
             <dl className="mt-2 space-y-1.5 leading-relaxed">
               <div>
-                <dt className="font-semibold text-slate-900 inline">
-                  Why recommended:{' '}
-                </dt>
+                <dt className="font-semibold text-slate-900 inline">Why recommended: </dt>
                 <dd className="inline">{card.impactMethodology.rationale}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-900 inline">
-                  Pollutants targeted:{' '}
-                </dt>
-                <dd className="inline">
-                  {card.impactMethodology.targetPollutants.join(', ')}
-                </dd>
+                <dt className="font-semibold text-slate-900 inline">Pollutants targeted: </dt>
+                <dd className="inline">{card.impactMethodology.targetPollutants.join(', ')}</dd>
               </div>
               <div>
                 <dt className="font-semibold text-slate-900 inline">
@@ -127,18 +95,12 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-900 inline">
-                  Assumptions:{' '}
-                </dt>
+                <dt className="font-semibold text-slate-900 inline">Assumptions: </dt>
                 <dd className="inline">{card.impactMethodology.assumptions}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-900 inline">
-                  Uncertainty:{' '}
-                </dt>
-                <dd className="inline text-slate-600">
-                  {card.impactMethodology.uncertaintyNote}
-                </dd>
+                <dt className="font-semibold text-slate-900 inline">Uncertainty: </dt>
+                <dd className="inline text-slate-600">{card.impactMethodology.uncertaintyNote}</dd>
               </div>
             </dl>
           </details>
@@ -156,10 +118,7 @@ export const ActionCardItem: React.FC<ActionCardItemProps> = ({
         >
           {isCompleted ? (
             <>
-              <CheckCircle2
-                aria-hidden="true"
-                className="w-4 h-4 text-emerald-800 shrink-0"
-              />
+              <CheckCircle2 aria-hidden="true" className="w-4 h-4 text-emerald-800 shrink-0" />
               <span>
                 {isCelebrating
                   ? `Logged ~${card.neighborhoodEmissionImpact.co2AvoidedKg} kg CO2 for ${city}`

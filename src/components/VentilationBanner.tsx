@@ -10,9 +10,7 @@ interface VentilationBannerProps {
  * Displays the upcoming 24-hour Safe Ventilation Window status tier banner,
  * optimal time window, and peak-hour comparison telemetry.
  */
-export const VentilationBanner: React.FC<VentilationBannerProps> = ({
-  safeWindow,
-}) => {
+export const VentilationBanner: React.FC<VentilationBannerProps> = ({ safeWindow }) => {
   return (
     <div
       data-testid="safe-ventilation-banner"
@@ -22,8 +20,8 @@ export const VentilationBanner: React.FC<VentilationBannerProps> = ({
         safeWindow.statusType === 'keep_sealed'
           ? 'bg-rose-50/80 border-rose-200'
           : safeWindow.statusType === 'open_now'
-          ? 'bg-emerald-50/80 border-emerald-200'
-          : 'bg-amber-50/60 border-amber-200'
+            ? 'bg-emerald-50/80 border-emerald-200'
+            : 'bg-amber-50/60 border-amber-200'
       }`}
     >
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -38,8 +36,8 @@ export const VentilationBanner: React.FC<VentilationBannerProps> = ({
                 safeWindow.statusType === 'keep_sealed'
                   ? 'bg-rose-700 text-white'
                   : safeWindow.statusType === 'open_now'
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-amber-800 text-white'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-amber-800 text-white'
               }`}
             >
               {safeWindow.statusType === 'keep_sealed' ? (
@@ -63,21 +61,16 @@ export const VentilationBanner: React.FC<VentilationBannerProps> = ({
             </span>
           </div>
 
-          <p className="text-sm text-slate-700 leading-relaxed">
-            {safeWindow.statusSubtext}
-          </p>
+          <p className="text-sm text-slate-700 leading-relaxed">{safeWindow.statusSubtext}</p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-slate-200/80 lg:pl-6 shrink-0">
           <div>
             <div className="text-xs text-slate-600">Window PM2.5</div>
             <div className="text-xl font-bold font-mono-tabular text-slate-900 mt-0.5">
-              {safeWindow.avgPm25}{' '}
-              <span className="text-xs font-normal text-slate-600">µg/m³</span>
+              {safeWindow.avgPm25} <span className="text-xs font-normal text-slate-600">µg/m³</span>
             </div>
-            <div className="text-xs text-emerald-800 font-medium mt-0.5">
-              Best 2h average
-            </div>
+            <div className="text-xs text-emerald-800 font-medium mt-0.5">Best 2h average</div>
           </div>
 
           <div>
@@ -90,9 +83,7 @@ export const VentilationBanner: React.FC<VentilationBannerProps> = ({
           </div>
 
           <div className="col-span-2 sm:col-span-1">
-            <div className="text-xs text-slate-600">
-              Worst Peak ({safeWindow.worstHourLabel})
-            </div>
+            <div className="text-xs text-slate-600">Worst Peak ({safeWindow.worstHourLabel})</div>
             <div className="text-xl font-bold font-mono-tabular text-rose-700 mt-0.5">
               {safeWindow.worstPm25}{' '}
               <span className="text-xs font-normal text-slate-600">µg/m³</span>
